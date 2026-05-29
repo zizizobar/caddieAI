@@ -15,17 +15,22 @@ export default async function handler(req, res) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: req.body.model || 'claude-sonnet-4-20250514',
-        max_tokens: req.body.max_tokens || 150,
-        system: req.body.system,
-        messages: req.body.messages,
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 150,
+        system: req.body.system || 'You are a golf caddie. Be concise.',
+        messages: req.body.messages || [],
       })
     });
+
+    if (!response.ok) {
+      const err = await response.text();
+      return res.status(200).json({ content: [{ text: 'API error: ' + response.status + ' - ' + err }] });
+    }
 
     const data = await response.json();
     return res.status(200).json(data);
     
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return res.status(200).json({ content: [{ text: 'Error: ' + err.message }] });
   }
 }
