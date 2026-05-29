@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>CaddieAI</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ── TOKENS ── */
+:root {
+  --white: #ffffff;
+  --off: #f8f8f8;
+  --light: #f0f0f0;
+  --sep: #e8e8e8;
+  --ink4: #c8c8c8;
+  --ink3: #999;
+  --ink2: #555;
+  --ink: #111;
+  --gold: #C9A84C;
+  --green-dark: #1a5c28;
+  --green: #2d8a3e;
+  --green-light: #5cb86a;
+  --green-fairway: #4ea84e;
+  --sky: #b8d4f0;
+  --blue: #3b82f6;
+  --red: #ef4444;
+  --amber: #f59e0b;
+  --r: 14px;
+  --safe-b: env(safe-area-inset-bottom, 20px);
+  --safe-t: env(safe-area-inset-top, 0px);
+}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body { height:100%; overflow:hidden; background:var(--white); }
+body { font-family:'DM Sans',-apple-system,sans-serif; color:var(--ink); }
+button { font-family:inherit; cursor:pointer; border:none; }
+input,select,textarea { font-family:inherit; }
+::-webkit-scrollbar { display:none; }
+
+/* ── APP SHELL ── */
+#app {
+  display: flex; flex-direction: column;
+  height: 100vh; max-width: 430px; margin: 0 auto;
+  background: var(--white); position: relative; overflow: hidden;
+}
+
+/* ── STATUS BAR SPACER ── */
+#status-space { height: var(--safe-t); background: transparent; flex-shrink:0; }
+
+/* ── TOP BAR ── */
+#topbar {
+  height: 52px; padding: 0 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0; background: var(--white);
+  border-bottom: 1px solid var(--sep);
+  position: relative; z-index: 50;
+}
+.logo {
+  font-family: 'DM Serif Display', Georgia, serif;
+  font-size: 19px; color: var(--ink); letter-spacing: -0.3px;
+}
+.logo em { color: var(--gold); font-style: normal; }
+.topbar-right { display: flex; gap: 8px; align-items: center; }
+.settings-btn {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--off); display: flex; align-items: center; justify-content: center;
+  font-size: 15px;
+}
+.score-total {
+  background: var(--ink); color: var(--white);
+  border-radius: 20px; padding: 4px 13px;
+  font-size: 13px; font-weight: 600; min-width: 42px; text-align: center;
+  font-family: 'DM Serif Display', serif;
+}
+
+/* ── CONTENT ── */
+#content { flex: 1; overflow: hidden; position: relative; }
+.tab-panel { display: none; flex-direction: column; height: 100%; }
+.tab-panel.active { display: flex; }
+
+/* ── BOTTOM NAV ── */
+#bottom-nav {
+  display: flex; background: var(--white);
+  border-top: 1px solid var(--sep);
+  padding-bottom: var(--safe-b);
+  flex-shrink: 0; position: relative; z-index: 50;
+}
+.nav-item {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; padding: 8px 4px 4px;
+  background: none; gap: 2px;
+}
+.nav-icon { font-size: 21px; opacity: 0.2; transition: opacity 0.15s; }
+.nav-label { font-size: 9px; font-weight: 400; color: var(--ink4); letter-spacing: 0.4px; text-transform: uppercase; transition: all 0.15s; }
+.nav-item.active .nav-icon { opacity: 1; }
+.nav-item.active .nav-label { color: var(--ink); font-weight: 600; }
+
+/* ════════════════════════════════════════════
+   TAB 1 — MAP
+════════════════════════════════════════════ */
+#tab-map { position: relative; background: var(--sky); }
+
+/* Map canvas fills everything */
+#map-svg-wrap {
+  flex: 1; position: relative; overflow: hidden;
+}
+#map-svg { width: 100%; height: 100%; display: block; }
+
+/* Hole header pill */
+#map-hole-pill {
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.72); backdrop-filter: blur(12px);
+  border-radius: 24px; padding: 6px 20px;
+  display: flex; align-items: center; gap: 16px;
+  z-index: 20; pointer-events: none;
+}
+.mph-nav { pointer-events: auto; background: none; color: rgba(255,255,255,0.5); font-size: 18px; padding: 0 4px; }
+.mph-hole { font-family: 'DM Serif Display', serif; font-size: 17px; color: var(--white); font-weight: 400; min-width: 60px; text-align: center; }
+.mph-par { font-size: 11px; color: rgba(255,255,255,0.5); }
+
+/* Distance cards */
+#dist-row {
+  position: absolute; top: 68px; left: 0; right: 0;
+  display: flex; justify-content: center; gap: 8px; padding: 0 20px;
+  z-index: 20; pointer-events: none;
+}
+.dist-card {
+  background: rgba(0,0,0,0.68); backdrop-filter: blur(10px);
+  border-radius: 12px; padding: 8px 14px; text-align: center; flex: 1;
+}
+.dist-card.main {
+  background: var(--white); flex: 1.3;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+.dist-label { font-size: 8px; color: rgba(255,255,255,0.45); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
+.dist-card.main .dist-label { color: var(--ink4); }
+.dist-num { font-family: 'DM Serif Display', serif; font-size: 28px; color: var(--white); line-height: 1; }
+.dist-card.main .dist-num { color: var(--ink); font-size: 36px; }
+.dist-unit { font-size: 10px; color: rgba(255,255,255,0.4); margin-top: 1px; }
+.dist-card.main .dist-unit { color: var(--ink3); }
+
+/* GPS status */
+#gps-status {
+  position: absolute; bottom: 100px; left: 16px;
+  background: rgba(0,0,0,0.65); backdrop-filter: blur(8px);
+  border-radius: 20px; padding: 5px 12px;
+  display: flex; align-items: center; gap: 6px;
+  z-index: 20; pointer-events: none;
+}
+.gps-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green-light); }
+.gps-dot.live { animation: pulse 2s infinite; }
+.gps-dot.searching { background: var(--amber); animation: pulse 0.8s infinite; }
+.gps-dot.off { background: var(--red); animation: none; }
+#gps-text { font-size: 10px; color: rgba(255,255,255,0.7); }
+
+/* Wind */
+#wind-card {
+  position: absolute; bottom: 100px; right: 16px;
+  background: rgba(0,0,0,0.65); backdrop-filter: blur(8px);
+  border-radius: 12px; padding: 8px 12px; text-align: center;
+  z-index: 20; pointer-events: none;
+}
+.wind-num { font-size: 16px; font-weight: 700; color: var(--white); font-family: monospace; }
+.wind-dir { font-size: 9px; color: rgba(255,255,255,0.5); margin-top: 1px; }
+
+/* MIC button — always on map */
+#map-mic {
+  position: absolute; bottom: 84px; left: 50%; transform: translateX(-50%);
+  width: 64px; height: 64px; border-radius: 50%;
+  background: var(--ink); color: var(--white);
+  font-size: 24px; z-index: 30;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+#map-mic.listening {
+  background: var(--red);
+  box-shadow: 0 0 0 8px rgba(239,68,68,0.2), 0 4px 24px rgba(239,68,68,0.3);
+}
+#map-mic.speaking {
+  background: var(--green);
+  box-shadow: 0 0 0 8px rgba(45,138,62,0.2);
+}
+
+/* Score quick row */
+#map-score-row {
+  background: var(--white); border-top: 1px solid var(--sep);
+  padding: 10px 16px; display: flex; align-items: center; gap: 8px;
+  flex-shrink: 0;
+}
+.hole-dots { display: flex; gap: 3px; flex: 1; overflow-x: auto; }
+.hdot {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 1.5px solid var(--sep); background: transparent;
+  color: var(--ink4); font-size: 8px; font-family: monospace;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0; transition: all 0.1s;
+}
+.hdot.cur { background: var(--ink); border-color: var(--ink); color: var(--white); }
+.hdot.done-birdie { background: var(--ink); border-color: var(--ink); color: var(--white); }
+.hdot.done-par { background: var(--light); border-color: var(--sep); color: var(--ink3); }
+.hdot.done-bogey { background: #fff8e6; border-color: #f0d080; color: #a07000; }
+.hdot.done-double { background: #fff0f0; border-color: #f0c0c0; color: var(--red); }
+.score-quick { display: flex; gap: 6px; align-items: center; }
+.sq-btn {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: var(--off); font-size: 18px; font-weight: 300; color: var(--ink);
+  display: flex; align-items: center; justify-content: center;
+}
+.sq-cur-score {
+  min-width: 28px; text-align: center;
+  font-family: 'DM Serif Display', serif; font-size: 20px; color: var(--ink);
+}
+
+/* ════════════════════════════════════════════
+   TAB 2 — CADDIE
+════════════════════════════════════════════ */
+#tab-caddie { background: var(--white); }
+
+/* Persona selector */
+#persona-strip {
+  display: flex; gap: 6px; padding: 12px 16px 8px;
+  overflow-x: auto; scrollbar-width: none; flex-shrink: 0;
+  border-bottom: 1px solid var(--sep);
+}
+.p-btn {
+  flex-shrink: 0; background: var(--off); border-radius: 20px;
+  padding: 6px 14px; font-size: 12px; font-weight: 400; color: var(--ink3);
+  transition: all 0.15s;
+}
+.p-btn.active { background: var(--ink); color: var(--white); font-weight: 600; }
+
+/* Context strip */
+#caddie-context {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 16px; background: var(--off); border-bottom: 1px solid var(--sep);
+  flex-shrink: 0;
+}
+.ctx-hole { font-family: 'DM Serif Display', serif; font-size: 15px; color: var(--ink); }
+.ctx-meta { font-size: 11px; color: var(--ink3); }
+.ctx-wx { font-size: 11px; color: var(--ink3); font-family: monospace; }
+
+/* Chat */
+#chat-messages {
+  flex: 1; overflow-y: auto; padding: 12px 16px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.msg { display: flex; gap: 8px; align-items: flex-end; animation: fadein 0.2s ease; }
+.msg.user { justify-content: flex-end; }
+.avatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; flex-shrink: 0;
+  background: var(--ink); color: var(--white);
+}
+.bubble {
+  max-width: 80%; padding: 10px 13px;
+  background: var(--off); border-radius: 4px 16px 16px 16px;
+  font-size: 14px; line-height: 1.55; color: var(--ink);
+}
+.bubble.user { background: var(--ink); color: var(--white); border-radius: 16px 4px 16px 16px; }
+.bubble.streaming { border-radius: 4px 16px 16px 16px; }
+.cursor-blink { display: inline-block; width: 2px; height: 14px; background: var(--ink3); margin-left: 1px; vertical-align: middle; animation: blink 1s infinite; }
+.dots-wrap { display: flex; gap: 4px; padding: 2px 0; align-items: center; }
+.dot { width: 5px; height: 5px; border-radius: 50%; background: var(--ink4); animation: bounce 1.2s infinite; }
+.dot:nth-child(2) { animation-delay: 0.2s; }
+.dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* Streaming bar */
+#stream-bar {
+  display: none; padding: 5px 16px;
+  background: var(--off); border-top: 1px solid var(--sep);
+  align-items: center; justify-content: space-between; flex-shrink: 0;
+}
+#stream-bar.show { display: flex; }
+.wave { display: flex; gap: 2px; align-items: flex-end; }
+.wbar { width: 2px; border-radius: 1px; background: var(--ink); animation: wave 0.7s infinite ease-in-out; }
+.wbar:nth-child(1){height:6px;animation-delay:0s}
+.wbar:nth-child(2){height:12px;animation-delay:0.1s}
+.wbar:nth-child(3){height:8px;animation-delay:0.2s}
+.wbar:nth-child(4){height:14px;animation-delay:0.3s}
+.wbar:nth-child(5){height:8px;animation-delay:0.4s}
+.stream-txt { font-size: 11px; color: var(--ink3); margin-left: 8px; }
+.stream-ms { font-size: 10px; color: var(--ink4); font-family: monospace; margin-left: 4px; }
+
+/* Input area */
+#caddie-input-wrap {
+  padding: 8px 16px 10px; border-top: 1px solid var(--sep); flex-shrink: 0;
+  display: flex; flex-direction: column; gap: 8px;
+}
+#input-row { display: flex; gap: 8px; align-items: center; }
+#msg-input {
+  flex: 1; background: var(--off); border: none; border-radius: 24px;
+  padding: 11px 16px; font-size: 14px; color: var(--ink); outline: none;
+}
+#msg-input::placeholder { color: var(--ink4); }
+.send-btn {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--ink); color: var(--white); font-size: 14px;
+  flex-shrink: 0; transition: all 0.15s; opacity: 0.3;
+}
+.send-btn.ready { opacity: 1; }
+.mic-btn-caddie {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--off); font-size: 18px; flex-shrink: 0; transition: all 0.15s;
+}
+.mic-btn-caddie.on { background: var(--red); }
+
+/* ════════════════════════════════════════════
+   TAB 3 — SCORE
+════════════════════════════════════════════ */
+#tab-score { background: var(--white); overflow-y: auto; }
+#score-header {
+  padding: 16px 16px 12px; border-bottom: 1px solid var(--sep); flex-shrink: 0;
+}
+.score-course-name { font-size: 11px; font-weight: 600; color: var(--ink4); letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 4px; }
+.score-big { display: flex; align-items: baseline; gap: 12px; }
+.score-big-num { font-family: 'DM Serif Display', serif; font-size: 42px; color: var(--ink); line-height: 1; }
+.score-big-label { font-size: 13px; color: var(--ink3); }
+
+/* Stat cards */
+.stat-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; padding: 12px 16px; flex-shrink: 0; }
+.stat-c { background: var(--off); border-radius: 12px; padding: 10px 6px; text-align: center; }
+.stat-n { font-family: 'DM Serif Display', serif; font-size: 22px; color: var(--ink); }
+.stat-l { font-size: 9px; color: var(--ink4); text-transform: uppercase; letter-spacing: 0.6px; margin-top: 2px; }
+
+/* Scorecard */
+#score-table-wrap { flex: 1; overflow-y: auto; padding: 0 16px 16px; }
+.sc-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.sc-table th { padding: 6px 4px; text-align: center; font-size: 9px; font-weight: 600; color: var(--ink4); letter-spacing: 0.5px; border-bottom: 1px solid var(--sep); }
+.sc-table td { padding: 9px 4px; text-align: center; color: var(--ink2); border-bottom: 1px solid #f5f5f5; }
+.sc-table tr.cur td { background: #fafafa; }
+.sc-table tr.cur td:first-child { font-weight: 700; color: var(--ink); }
+.chip { display: inline-block; min-width: 30px; padding: 2px 7px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.chip-eagle  { background: var(--ink); color: var(--white); }
+.chip-birdie { background: var(--ink); color: var(--white); }
+.chip-par    { background: var(--light); color: var(--ink3); }
+.chip-bogey  { background: #fff8e1; color: #a07000; }
+.chip-double { background: #fff0f0; color: var(--red); }
+.sc-foot td { font-weight: 700; color: var(--ink); border-top: 2px solid var(--ink); font-size: 13px; padding-top: 10px; }
+
+/* ════════════════════════════════════════════
+   TAB 4 — COURSES
+════════════════════════════════════════════ */
+#tab-courses { overflow-y: auto; background: var(--white); padding: 16px; }
+.section-title { font-size: 10px; font-weight: 600; color: var(--ink4); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 12px; }
+.course-card {
+  border-radius: var(--r); padding: 16px; margin-bottom: 10px; cursor: pointer;
+  transition: all 0.15s;
+}
+.course-card.on { background: var(--ink); }
+.course-card.off { background: var(--off); }
+.cc-name { font-size: 16px; font-weight: 700; margin-bottom: 3px; }
+.course-card.on .cc-name { color: var(--white); }
+.course-card.off .cc-name { color: var(--ink); }
+.cc-meta { font-size: 12px; }
+.course-card.on .cc-meta { color: rgba(255,255,255,0.45); }
+.course-card.off .cc-meta { color: var(--ink3); }
+.cc-badge { background: rgba(255,255,255,0.15); border-radius: 20px; padding: 2px 9px; font-size: 10px; color: var(--white); }
+.cc-mini { display: flex; gap: 3px; margin-top: 12px; flex-wrap: wrap; }
+.cc-sq { width: 17px; height: 17px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 7px; font-weight: 600; }
+.coming { background: var(--off); border-radius: var(--r); padding: 13px 16px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+.coming-name { font-size: 14px; color: var(--ink4); }
+.coming-tag { background: var(--light); border-radius: 20px; padding: 2px 9px; font-size: 10px; color: var(--ink4); }
+
+/* ════════════════════════════════════════════
+   SETTINGS PANEL
+════════════════════════════════════════════ */
+#settings-panel {
+  position: fixed; inset: 0; z-index: 200;
+  background: var(--white); display: none; flex-direction: column;
+  max-width: 430px; margin: 0 auto;
+}
+#settings-panel.open { display: flex; }
+#settings-header {
+  height: 52px; padding: 0 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--sep); flex-shrink: 0;
+}
+.settings-title { font-family: 'DM Serif Display', serif; font-size: 18px; }
+.settings-close { width: 32px; height: 32px; border-radius: 50%; background: var(--off); font-size: 16px; display: flex; align-items: center; justify-content: center; }
+#settings-body { flex: 1; overflow-y: auto; padding: 0 0 32px; }
+
+/* Settings sections */
+.s-section { padding: 20px 16px 0; }
+.s-section-title { font-size: 10px; font-weight: 700; color: var(--ink4); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 12px; }
+.s-group { background: var(--off); border-radius: var(--r); overflow: hidden; margin-bottom: 16px; }
+.s-row {
+  display: flex; align-items: center; padding: 13px 14px;
+  border-bottom: 1px solid var(--sep); gap: 12px;
+}
+.s-row:last-child { border-bottom: none; }
+.s-icon { font-size: 17px; flex-shrink: 0; width: 22px; text-align: center; }
+.s-label { font-size: 14px; color: var(--ink); flex: 1; }
+.s-input {
+  background: none; border: none; outline: none;
+  font-size: 14px; color: var(--ink2); text-align: right;
+  width: 120px;
+}
+.s-input::placeholder { color: var(--ink4); }
+.s-select {
+  background: none; border: none; outline: none;
+  font-size: 14px; color: var(--ink2); text-align: right;
+  -webkit-appearance: none; padding-right: 4px;
+}
+.s-val { font-size: 14px; color: var(--ink3); }
+.s-chevron { color: var(--ink4); font-size: 12px; margin-left: 4px; }
+
+/* Club distances */
+.club-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--sep); border-radius: var(--r); overflow: hidden; margin-bottom: 16px; }
+.club-row { background: var(--off); display: flex; align-items: center; padding: 12px 14px; gap: 10px; }
+.club-name { font-size: 13px; font-weight: 500; color: var(--ink2); flex: 1; }
+.club-dist-input {
+  background: none; border: none; outline: none;
+  font-size: 16px; font-weight: 600; color: var(--ink);
+  font-family: 'DM Serif Display', serif;
+  width: 50px; text-align: right;
+}
+.club-unit { font-size: 11px; color: var(--ink4); }
+.suggested-badge { font-size: 9px; background: #e8f5ea; color: var(--green); border-radius: 8px; padding: 1px 6px; }
+
+/* Save button */
+.save-btn {
+  margin: 16px; width: calc(100% - 32px);
+  background: var(--ink); color: var(--white);
+  border-radius: var(--r); padding: 15px;
+  font-size: 15px; font-weight: 600; text-align: center;
+}
+
+/* ════════════════════════════════════════════
+   SCORE MODAL
+════════════════════════════════════════════ */
+#score-modal {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(0,0,0,0.3); display: none;
+  align-items: flex-end; justify-content: center;
+  max-width: 430px; margin: 0 auto;
+}
+#score-modal.open { display: flex; }
+#score-sheet {
+  background: var(--white); border-radius: 20px 20px 0 0;
+  padding: 20px 20px calc(20px + var(--safe-b));
+  width: 100%;
+}
+.modal-handle { width: 36px; height: 4px; background: var(--sep); border-radius: 2px; margin: 0 auto 18px; }
+.modal-title { font-family: 'DM Serif Display', serif; font-size: 20px; margin-bottom: 3px; }
+.modal-sub { font-size: 13px; color: var(--ink3); margin-bottom: 18px; }
+.stroke-btns { display: flex; gap: 8px; justify-content: center; margin-bottom: 14px; flex-wrap: wrap; }
+.s-btn {
+  width: 54px; height: 54px; border-radius: 50%;
+  border: 2px solid var(--sep); background: var(--white);
+  font-size: 18px; font-weight: 600; color: var(--ink2);
+  font-family: 'DM Serif Display', serif; transition: all 0.12s;
+}
+.s-btn.sel { background: var(--ink); border-color: var(--ink); color: var(--white); }
+.score-result { text-align: center; font-size: 13px; font-weight: 600; color: var(--ink); min-height: 20px; margin-bottom: 14px; }
+.modal-btns { display: flex; gap: 10px; }
+.modal-cancel { flex: 1; padding: 14px; border-radius: 14px; background: var(--off); font-size: 14px; font-weight: 500; color: var(--ink3); }
+.modal-save { flex: 2; padding: 14px; border-radius: 14px; background: var(--light); font-size: 14px; font-weight: 600; color: var(--ink4); transition: all 0.15s; }
+.modal-save.ready { background: var(--ink); color: var(--white); }
+
+/* ── ANIMATIONS ── */
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+@keyframes bounce { 0%,60%,100%{transform:translateY(0);opacity:0.3} 30%{transform:translateY(-4px);opacity:1} }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+@keyframes fadein { from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:translateY(0)} }
+@keyframes wave { 0%,100%{transform:scaleY(0.4)} 50%{transform:scaleY(1)} }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="status-space"></div>
+
+  <!-- TOP BAR -->
+  <div id="topbar">
+    <div class="logo">Caddie<em>AI</em></div>
+    <div class="topbar-right">
+      <div class="score-total" id="score-badge">E</div>
+      <button class="settings-btn" onclick="openSettings()">⚙️</button>
+    </div>
+  </div>
+
+  <!-- CONTENT -->
+  <div id="content">
+
+    <!-- ── TAB MAP ── -->
+    <div id="tab-map" class="tab-panel active">
+      <div id="map-svg-wrap">
+        <svg id="map-svg" viewBox="0 0 400 500" preserveAspectRatio="xMidYMid slice"></svg>
+
+        <!-- Hole pill nav -->
+        <div id="map-hole-pill">
+          <button class="mph-nav" onclick="prevHole()">‹</button>
+          <div>
+            <div class="mph-hole" id="mph-hole-text">Hole 1 · Par 4</div>
+            <div class="mph-par" id="mph-course-text">Le Château · 287m</div>
+          </div>
+          <button class="mph-nav" onclick="nextHole()">›</button>
+        </div>
+
+        <!-- Distances -->
+        <div id="dist-row">
+          <div class="dist-card">
+            <div class="dist-label">Front</div>
+            <div class="dist-num" id="d-front">277</div>
+            <div class="dist-unit">m</div>
+          </div>
+          <div class="dist-card main">
+            <div class="dist-label">Center</div>
+            <div class="dist-num" id="d-center">287</div>
+            <div class="dist-unit">m</div>
+          </div>
+          <div class="dist-card">
+            <div class="dist-label">Back</div>
+            <div class="dist-num" id="d-back">297</div>
+            <div class="dist-unit">m</div>
+          </div>
+        </div>
+
+        <!-- GPS -->
+        <div id="gps-status">
+          <div class="gps-dot searching" id="gps-dot"></div>
+          <span id="gps-text">Locating...</span>
+        </div>
+
+        <!-- Wind -->
+        <div id="wind-card">
+          <div class="wind-num" id="wind-num">--</div>
+          <div class="wind-dir" id="wind-dir">km/h</div>
+        </div>
+
+        <!-- Mic -->
+        <button id="map-mic" onclick="toggleMapMic()">🎙</button>
+      </div>
+
+      <!-- Score row -->
+      <div id="map-score-row">
+        <div class="hole-dots" id="hole-dots"></div>
+        <div class="score-quick">
+          <button class="sq-btn" onclick="quickScore(-1)">−</button>
+          <div class="sq-cur-score" id="sq-score">—</div>
+          <button class="sq-btn" onclick="quickScore(1)">+</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TAB CADDIE ── -->
+    <div id="tab-caddie" class="tab-panel">
+      <div id="persona-strip">
+        <button class="p-btn active" onclick="setPersona('pro',this)">🎩 Pro</button>
+        <button class="p-btn" onclick="setPersona('coach',this)">💪 Coach</button>
+        <button class="p-btn" onclick="setPersona('buddy',this)">🤝 Buddy</button>
+        <button class="p-btn" onclick="setPersona('seve',this)">⭐ Legend</button>
+      </div>
+      <div id="caddie-context">
+        <div>
+          <div class="ctx-hole" id="ctx-hole">Hole 1 · Par 4 · 287m</div>
+          <div class="ctx-meta" id="ctx-meta">Le Château · SI 10 · HCP 14</div>
+        </div>
+        <div class="ctx-wx" id="ctx-wx">-- km/h --</div>
+      </div>
+      <div id="stream-bar">
+        <div style="display:flex;align-items:center">
+          <div class="wave"><div class="wbar"></div><div class="wbar"></div><div class="wbar"></div><div class="wbar"></div><div class="wbar"></div></div>
+          <span class="stream-txt" id="stream-txt">Thinking</span>
+          <span class="stream-ms" id="stream-ms"></span>
+        </div>
+        <button onclick="stopSpeaking()" style="background:none;color:var(--ink4);font-size:11px">Stop</button>
+      </div>
+      <div id="chat-messages"></div>
+      <div id="caddie-input-wrap">
+        <div id="input-row">
+          <input id="msg-input" placeholder="Ask your caddie..." oninput="toggleSendBtn()" onkeydown="if(event.key==='Enter')sendMsg()">
+          <button class="send-btn" id="send-btn" onclick="sendMsg()">➤</button>
+          <button class="mic-btn-caddie" id="mic-caddie" onclick="toggleCaddieMic()">🎙</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TAB SCORE ── -->
+    <div id="tab-score" class="tab-panel">
+      <div id="score-header">
+        <div class="score-course-name" id="sc-course-name">Le Château</div>
+        <div class="score-big">
+          <div class="score-big-num" id="sc-total">E</div>
+          <div class="score-big-label" id="sc-holes-played">0 holes</div>
+        </div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-c"><div class="stat-n" id="st-played">0</div><div class="stat-l">Played</div></div>
+        <div class="stat-c"><div class="stat-n" id="st-birdies">0</div><div class="stat-l">Birdies</div></div>
+        <div class="stat-c"><div class="stat-n" id="st-pars">0</div><div class="stat-l">Pars</div></div>
+        <div class="stat-c"><div class="stat-n" id="st-bogeys">0</div><div class="stat-l">Bogeys+</div></div>
+      </div>
+      <div id="score-table-wrap">
+        <table class="sc-table">
+          <thead><tr><th>#</th><th>Par</th><th>m</th><th>SI</th><th>Score</th></tr></thead>
+          <tbody id="sc-tbody"></tbody>
+          <tfoot><tr class="sc-foot"><td colspan="2">Total</td><td id="sc-tot-m">5424</td><td></td><td id="sc-tot-score">E</td></tr></tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── TAB COURSES ── -->
+    <div id="tab-courses" class="tab-panel">
+      <div class="section-title">Sept Fontaines · Brussels</div>
+      <div class="course-card on" id="cc-chateau" onclick="selectCourse('chateau')">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div><div class="cc-name">Le Château</div><div class="cc-meta">18 holes · Par 72 · 5424m</div></div>
+          <span class="cc-badge" id="cc-badge-chateau">Active</span>
+        </div>
+        <div class="cc-mini" id="cc-mini-chateau"></div>
+      </div>
+      <div class="course-card off" id="cc-foret" onclick="selectCourse('foret')">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div><div class="cc-name">La Forêt</div><div class="cc-meta">18 holes · Par 69 · 4787m</div></div>
+          <span class="cc-badge" id="cc-badge-foret" style="display:none">Active</span>
+        </div>
+        <div class="cc-mini" id="cc-mini-foret"></div>
+      </div>
+      <div style="margin-top:20px" class="section-title">Coming Soon</div>
+      <div class="coming"><span class="coming-name">Royal Zoute</span><span class="coming-tag">Soon</span></div>
+      <div class="coming"><span class="coming-name">Rigenée</span><span class="coming-tag">Soon</span></div>
+      <div class="coming"><span class="coming-name">Château de la Bawette</span><span class="coming-tag">Soon</span></div>
+      <div class="coming"><span class="coming-name">Golf de Falnuée</span><span class="coming-tag">Soon</span></div>
+    </div>
+
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <div id="bottom-nav">
+    <button class="nav-item active" onclick="switchTab('map',this)">
+      <div class="nav-icon">🗺️</div><div class="nav-label">Map</div>
+    </button>
+    <button class="nav-item" onclick="switchTab('caddie',this)">
+      <div class="nav-icon">🎙</div><div class="nav-label">Caddie</div>
+    </button>
+    <button class="nav-item" onclick="switchTab('score',this)">
+      <div class="nav-icon">📊</div><div class="nav-label">Score</div>
+    </button>
+    <button class="nav-item" onclick="switchTab('courses',this)">
+      <div class="nav-icon">⛳</div><div class="nav-label">Courses</div>
+    </button>
+  </div>
+</div>
+
+<!-- SETTINGS PANEL -->
+<div id="settings-panel">
+  <div id="settings-header">
+    <div class="settings-title">Profile & Settings</div>
+    <button class="settings-close" onclick="closeSettings()">✕</button>
+  </div>
+  <div id="settings-body">
+
+    <div class="s-section">
+      <div class="s-section-title">Identity</div>
+      <div class="s-group">
+        <div class="s-row"><div class="s-icon">👤</div><div class="s-label">First name</div><input class="s-input" id="p-name" placeholder="Your name"></div>
+        <div class="s-row"><div class="s-icon">🎂</div><div class="s-label">Age</div><input class="s-input" id="p-age" type="number" placeholder="--"></div>
+        <div class="s-row"><div class="s-icon">⚥</div><div class="s-label">Gender</div>
+          <select class="s-select" id="p-gender"><option value="">Select</option><option>Male</option><option>Female</option><option>Other</option></select>
+        </div>
+        <div class="s-row"><div class="s-icon">🌍</div><div class="s-label">Nationality</div><input class="s-input" id="p-nationality" placeholder="Belgium"></div>
+        <div class="s-row"><div class="s-icon">🏌️</div><div class="s-label">Home club</div><input class="s-input" id="p-club" placeholder="Sept Fontaines"></div>
+      </div>
+    </div>
+
+    <div class="s-section">
+      <div class="s-section-title">Golf Profile</div>
+      <div class="s-group">
+        <div class="s-row"><div class="s-icon">📉</div><div class="s-label">Handicap index</div><input class="s-input" id="p-hcp" type="number" step="0.1" placeholder="14.2"></div>
+        <div class="s-row"><div class="s-icon">🏆</div><div class="s-label">Level</div>
+          <select class="s-select" id="p-level"><option>Beginner</option><option selected>Intermediate</option><option>Advanced</option><option>Elite</option></select>
+        </div>
+        <div class="s-row"><div class="s-icon">✋</div><div class="s-label">Dominant hand</div>
+          <select class="s-select" id="p-hand"><option selected>Right</option><option>Left</option></select>
+        </div>
+        <div class="s-row"><div class="s-icon">🎮</div><div class="s-label">Preferred format</div>
+          <select class="s-select" id="p-format"><option selected>Stroke play</option><option>Stableford</option><option>Match play</option><option>Bogey</option></select>
+        </div>
+        <div class="s-row"><div class="s-icon">💭</div><div class="s-label">Ball flight</div>
+          <select class="s-select" id="p-flight"><option selected>Straight</option><option>Fade</option><option>Draw</option><option>Slice</option><option>Hook</option></select>
+        </div>
+        <div class="s-row"><div class="s-icon">⚠️</div><div class="s-label">Main weakness</div>
+          <select class="s-select" id="p-weakness"><option selected>Driving</option><option>Irons</option><option>Wedges</option><option>Putting</option><option>Bunkers</option><option>Mental</option></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="s-section">
+      <div class="s-section-title">Club Distances</div>
+      <div class="club-grid" id="club-grid"></div>
+    </div>
+
+    <div class="s-section">
+      <div class="s-section-title">Caddie Preferences</div>
+      <div class="s-group">
+        <div class="s-row"><div class="s-icon">🎩</div><div class="s-label">Default persona</div>
+          <select class="s-select" id="p-persona"><option>Pro</option><option>Coach</option><option>Buddy</option><option>Legend</option></select>
+        </div>
+        <div class="s-row"><div class="s-icon">🌍</div><div class="s-label">Language</div>
+          <select class="s-select" id="p-lang"><option value="en">English</option><option value="fr">Français</option><option value="nl">Nederlands</option></select>
+        </div>
+        <div class="s-row"><div class="s-icon">🔊</div><div class="s-label">Voice mode</div>
+          <select class="s-select" id="p-voice"><option>Screen only</option><option selected>Speaker</option><option>Earbuds</option></select>
+        </div>
+      </div>
+    </div>
+
+    <button class="save-btn" onclick="saveProfile()">Save Profile</button>
+  </div>
+</div>
+
+<!-- SCORE MODAL -->
+<div id="score-modal">
+  <div id="score-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modal-title">Hole 1 — Par 4</div>
+    <div class="modal-sub">How many strokes?</div>
+    <div class="stroke-btns" id="stroke-btns"></div>
+    <div class="score-result" id="score-result"></div>
+    <div class="modal-btns">
+      <button class="modal-cancel" onclick="closeScoreModal()">Cancel</button>
+      <button class="modal-save" id="modal-save" onclick="saveScore()">Save & Next →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── COURSES ───────────────────────────────────────────────────
+const COURSES = {
+  chateau: {
+    name:"Le Château", par:72, yards:5424,
+    holes:[
+      {n:1,par:4,y:287,si:10,tip:"Dogleg left — aim centre-left fairway"},
+      {n:2,par:4,y:291,si:8,tip:"Wide fairway — downhill approach"},
+      {n:3,par:5,y:394,si:16,tip:"Reachable in 2 — hedges left"},
+      {n:4,par:4,y:313,si:12,tip:"Bunker at 200m — elevated green"},
+      {n:5,par:5,y:422,si:2,tip:"Water right entire hole"},
+      {n:6,par:3,y:150,si:14,tip:"Par 3 over water — dominant wind"},
+      {n:7,par:4,y:306,si:4,tip:"Narrow fairway — trees both sides"},
+      {n:8,par:3,y:136,si:18,tip:"Short par 3 — fast green"},
+      {n:9,par:4,y:335,si:6,tip:"Plateau green — back to clubhouse"},
+      {n:10,par:4,y:353,si:1,tip:"Index 1 — water in play"},
+      {n:11,par:4,y:330,si:17,tip:"Uphill — bunker at 180m"},
+      {n:12,par:3,y:156,si:13,tip:"Very steep green"},
+      {n:13,par:4,y:310,si:7,tip:"2 greenside bunkers"},
+      {n:14,par:5,y:410,si:5,tip:"Reachable in 2 — water left"},
+      {n:15,par:4,y:303,si:11,tip:"Uphill — don't underclub"},
+      {n:16,par:4,y:344,si:3,tip:"Hardest on back nine"},
+      {n:17,par:3,y:166,si:15,tip:"Downhill — wind amplified"},
+      {n:18,par:5,y:418,si:9,tip:"Dramatic finish — water right"},
+    ]
+  },
+  foret: {
+    name:"La Forêt", par:69, yards:4787,
+    holes:[
+      {n:1,par:4,y:265,si:11,tip:"Forest entry — slight dogleg"},
+      {n:2,par:3,y:141,si:15,tip:"Elevated green — watch trees"},
+      {n:3,par:4,y:280,si:13,tip:"Downhill — protected green"},
+      {n:4,par:4,y:304,si:5,tip:"Left fairway bunker"},
+      {n:5,par:4,y:345,si:1,tip:"Index 1 — uphill dogleg"},
+      {n:6,par:3,y:146,si:7,tip:"Technical — small green"},
+      {n:7,par:4,y:315,si:3,tip:"Dense forest — precision"},
+      {n:8,par:3,y:134,si:17,tip:"Good birdie chance"},
+      {n:9,par:4,y:260,si:9,tip:"Sloped green"},
+      {n:10,par:3,y:109,si:18,tip:"Shortest — wedge to flag"},
+      {n:11,par:4,y:270,si:6,tip:"Narrow between beeches"},
+      {n:12,par:4,y:304,si:10,tip:"Slight dogleg — left bunker"},
+      {n:13,par:5,y:457,si:4,tip:"Par 5 — OB right"},
+      {n:14,par:3,y:126,si:16,tip:"Green below — wind"},
+      {n:15,par:5,y:497,si:2,tip:"Stream in play"},
+      {n:16,par:4,y:263,si:8,tip:"Downhill to green"},
+      {n:17,par:3,y:137,si:14,tip:"Tight forest corridor"},
+      {n:18,par:5,y:414,si:12,tip:"Wide final fairway"},
+    ]
+  }
+};
+
+const CLUBS = ["Driver","3 Wood","5 Wood","Hybrid","4 Iron","5 Iron","6 Iron","7 Iron","8 Iron","9 Iron","PW","GW","SW","LW"];
+const DEFAULT_DIST = [215,200,185,175,168,160,150,140,130,120,108,95,82,68];
+const SUGGESTED_DIST = [198,186,172,165,160,152,143,133,124,114,102,90,77,63];
+
+const PERSONAS = {
+  pro:   {emoji:"🎩",system:"You are a PGA Tour caddie. Ultra concise, precise, authoritative. 1-2 sentences MAX. No filler. No greetings."},
+  coach: {emoji:"💪",system:"You are a demanding golf coach. Direct, motivating, push improvement. 1-2 sentences MAX."},
+  buddy: {emoji:"🤝",system:"You are a friendly golf buddy. Warm, relaxed. 1-2 sentences MAX."},
+  seve:  {emoji:"⭐",system:"Inspired by Seve Ballesteros. Passionate, bold, creative. 1-2 sentences MAX."},
+};
+
+// ── STATE ─────────────────────────────────────────────────────
+const S = {
+  course: 'chateau', hole: 0, persona: 'pro',
+  scores: {}, weather: null,
+  streaming: false, listening: false, speaking: false,
+  abortCtrl: null, gpsWatcher: null,
+  profile: {
+    name:'', age:'', gender:'', nationality:'', club:'Sept Fontaines',
+    hcp:14.2, level:'Intermediate', hand:'Right', format:'Stroke play',
+    flight:'Straight', weakness:'Driving', persona:'pro', lang:'en', voice:'Speaker',
+    clubs: [...DEFAULT_DIST]
+  },
+  selectedStroke: null,
+  holeCurrentScore: null,
+};
+
+// ── INIT ──────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  loadProfile();
+  renderClubGrid();
+  renderHoleDots();
+  renderCourseMinis();
+  renderScoreTable();
+  drawMapSVG();
+  initWeather();
+  initGPS();
+  addCaddieMsg("Ready. Le Château, hole 1, par 4, 287m. Dogleg left — aim centre-left.", 'pro');
+  updateContextStrip();
+  updateScoreBadge();
+});
+
+// ── NAVIGATION ────────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (name === 'score') renderScoreTable();
+  if (name === 'map') { renderHoleDots(); drawMapSVG(); }
+}
+
+// ── WEATHER ───────────────────────────────────────────────────
+function initWeather() {
+  fetch('https://api.open-meteo.com/v1/forecast?latitude=50.617&longitude=4.367&current=temperature_2m,wind_speed_10m,wind_direction_10m,relative_humidity_2m&wind_speed_unit=kmh&timezone=auto')
+    .then(r => r.json()).then(d => {
+      const c = d.current;
+      const dirs = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSO","SO","OSO","O","ONO","NO","NNO"];
+      S.weather = { temp: Math.round(c.temperature_2m), wind: Math.round(c.wind_speed_10m), dir: dirs[Math.round(c.wind_direction_10m/22.5)%16], hum: c.relative_humidity_2m };
+      document.getElementById('wind-num').textContent = S.weather.wind;
+      document.getElementById('wind-dir').textContent = S.weather.dir + ' km/h';
+      document.getElementById('wind-card').style.display = '';
+      document.getElementById('ctx-wx').textContent = S.weather.wind + ' km/h ' + S.weather.dir;
+    }).catch(() => {});
+}
+
+// ── GPS ───────────────────────────────────────────────────────
+function initGPS() {
+  if (!navigator.geolocation) { setGPS('off', 'GPS unavailable'); return; }
+  setGPS('searching', 'Locating...');
+  S.gpsWatcher = navigator.geolocation.watchPosition(
+    pos => {
+      const acc = Math.round(pos.coords.accuracy);
+      setGPS('live', `GPS · ±${acc}m`);
+      computeGPSDistances(pos.coords.latitude, pos.coords.longitude);
+    },
+    () => setGPS('off', 'GPS off'),
+    { enableHighAccuracy: true, maximumAge: 3000, timeout: 10000 }
+  );
+}
+
+function setGPS(type, text) {
+  document.getElementById('gps-dot').className = 'gps-dot ' + type;
+  document.getElementById('gps-text').textContent = text;
+}
+
+function computeGPSDistances(lat, lng) {
+  const h = COURSES[S.course].holes[S.hole];
+  const center = Math.round(h.y * 0.9); // approximation
+  document.getElementById('d-center').textContent = center;
+  document.getElementById('d-front').textContent = Math.max(0, center - 10);
+  document.getElementById('d-back').textContent = center + 10;
+}
+
+// ── MAP SVG ───────────────────────────────────────────────────
+const HOLE_DATA = [
+  {type:'dogleg-l', tee:[200,460], bend:[160,280], green:[110,80], bunkers:[[145,220,20,13],[100,95,22,15]], water:false},
+  {type:'straight', tee:[200,460], bend:[200,270], green:[200,80], bunkers:[[175,210,18,12],[225,230,18,12]], water:false},
+  {type:'slight-r', tee:[190,460], bend:[210,270], green:[240,80], bunkers:[[185,250,18,12]], water:false},
+  {type:'straight', tee:[200,460], bend:[200,270], green:[200,80], bunkers:[[218,210,16,11],[182,210,16,11]], water:false},
+  {type:'dogleg-r', tee:[175,460], bend:[210,270], green:[280,90], bunkers:[], water:true},
+  {type:'par3',     tee:[200,460], bend:[200,270], green:[200,90], bunkers:[[175,100,20,14],[225,100,20,14]], water:true},
+  {type:'dogleg-l', tee:[210,460], bend:[185,270], green:[155,90], bunkers:[[148,210,18,12]], water:false},
+  {type:'par3',     tee:[200,460], bend:[200,270], green:[200,95], bunkers:[[178,105,20,14]], water:false},
+  {type:'slight-r', tee:[195,460], bend:[210,270], green:[225,85], bunkers:[[240,190,18,12]], water:false},
+  {type:'dogleg-r', tee:[190,460], bend:[220,260], green:[270,85], bunkers:[[255,170,18,12]], water:true},
+  {type:'straight', tee:[200,460], bend:[200,270], green:[195,85], bunkers:[[215,245,16,11]], water:false},
+  {type:'par3',     tee:[200,460], bend:[200,270], green:[200,95], bunkers:[[178,108,20,14],[222,108,20,14]], water:false},
+  {type:'straight', tee:[200,460], bend:[205,270], green:[210,85], bunkers:[[228,105,18,12],[190,105,18,12]], water:false},
+  {type:'par5-r',   tee:[185,460], bend:[215,270], green:[255,80], bunkers:[], water:false},
+  {type:'slight-l', tee:[205,460], bend:[195,270], green:[180,85], bunkers:[[205,260,16,11]], water:false},
+  {type:'dogleg-l', tee:[210,460], bend:[185,270], green:[165,85], bunkers:[[150,200,18,12]], water:false},
+  {type:'par3',     tee:[200,460], bend:[200,270], green:[200,95], bunkers:[[178,108,20,14],[222,108,20,14]], water:false},
+  {type:'par5-r',   tee:[200,460], bend:[230,270], green:[265,80], bunkers:[], water:false},
+];
+
+function drawMapSVG() {
+  const svg = document.getElementById('map-svg');
+  const d = HOLE_DATA[Math.min(S.hole, HOLE_DATA.length-1)];
+  const h = COURSES[S.course].holes[S.hole];
+  const [tx,ty] = d.tee, [bx,by] = d.bend, [gx,gy] = d.green;
+
+  // Build fairway path
+  const fw = `M${tx},${ty} Q${bx},${by} ${gx},${gy}`;
+  const roughW = h.par === 3 ? 36 : h.par === 5 ? 58 : 50;
+  const fairW  = h.par === 3 ? 32 : h.par === 5 ? 52 : 44;
+
+  let s = `<defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#a8c8e8"/>
+      <stop offset="100%" stop-color="#c8dff0"/>
+    </linearGradient>
+    <filter id="sh"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.12"/></filter>
+  </defs>
+  <rect width="400" height="500" fill="url(#sky)"/>`;
+
+  // Rough
+  s += `<path d="${fw}" stroke="#3d7a2e" stroke-width="${roughW+20}" fill="none" stroke-linecap="round" opacity="0.65"/>`;
+  // Fringe
+  s += `<path d="${fw}" stroke="#5aaa48" stroke-width="${roughW}" fill="none" stroke-linecap="round" opacity="0.9"/>`;
+  // Fairway
+  s += `<path d="${fw}" stroke="#68c058" stroke-width="${fairW}" fill="none" stroke-linecap="round"/>`;
+  // Stripe
+  s += `<path d="${fw}" stroke="#78cc68" stroke-width="${fairW-10}" fill="none" stroke-linecap="round" stroke-dasharray="24 24" opacity="0.35"/>`;
+
+  // Water
+  if (d.water) {
+    const wx = d.type==='dogleg-r' ? 300 : 295, wy = 250;
+    s += `<ellipse cx="${wx}" cy="${wy}" rx="52" ry="34" fill="#3a7fd4" opacity="0.8"/>
+          <ellipse cx="${wx}" cy="${wy}" rx="49" ry="31" fill="#4a90e4" opacity="0.4"/>
+          <text x="${wx}" y="${wy+4}" text-anchor="middle" font-size="10" fill="rgba(255,255,255,0.5)">💧</text>`;
+  }
+
+  // Trees
+  [[55,380],[42,300],[58,220],[70,150],[52,90],
+   [348,380],[360,300],[345,220],[332,150],[350,90],
+   [85,440],[318,440],[80,50],[322,50]].forEach(([x,y]) => {
+    s += `<circle cx="${x}" cy="${y}" r="16" fill="#2a6020" opacity="0.8"/>
+          <circle cx="${x}" cy="${y}" r="12" fill="#3a7a30" opacity="0.5"/>`;
+  });
+
+  // Bunkers
+  d.bunkers.forEach(([bkx,bky,bw,bh]) => {
+    s += `<ellipse cx="${bkx}" cy="${bky}" rx="${bw}" ry="${bh}" fill="#e8d88a" opacity="0.95" filter="url(#sh)"/>
+          <ellipse cx="${bkx}" cy="${bky}" rx="${bw-3}" ry="${bh-3}" fill="#f2e89e" opacity="0.6"/>`;
+  });
+
+  // Green
+  s += `<ellipse cx="${gx}" cy="${gy}" rx="32" ry="23" fill="#32a832" opacity="0.95" filter="url(#sh)"/>
+        <ellipse cx="${gx}" cy="${gy}" rx="30" ry="21" fill="#48c848" opacity="0.5"/>
+        <line x1="${gx}" y1="${gy-22}" x2="${gx}" y2="${gy+5}" stroke="white" stroke-width="1.5"/>
+        <polygon points="${gx},${gy-22} ${gx+11},${gy-16} ${gx},${gy-10}" fill="#e63946"/>
+        <circle cx="${gx}" cy="${gy+10}" r="3" fill="white" opacity="0.6"/>
+        <circle cx="${gx}" cy="${gy}" r="3" fill="#e63946" opacity="0.9"/>
+        <circle cx="${gx}" cy="${gy-10}" r="3" fill="white" opacity="0.6"/>`;
+
+  // Tee
+  s += `<rect x="${tx-18}" y="${ty-11}" width="36" height="22" rx="5" fill="#b89040" opacity="0.9"/>
+        <rect x="${tx-16}" y="${ty-9}" width="32" height="18" rx="4" fill="#d4aa58" opacity="0.6"/>
+        <text x="${tx}" y="${ty+5}" text-anchor="middle" fill="white" font-size="9" font-weight="700">TEE</text>`;
+
+  // Dashed line tee → green
+  s += `<line x1="${tx}" y1="${ty}" x2="${gx}" y2="${gy}" stroke="rgba(255,255,255,0.25)" stroke-width="1" stroke-dasharray="6 5"/>`;
+
+  // Player dot — midway on fairway
+  const px = tx + (gx-tx)*0.38, py = ty + (gy-ty)*0.38;
+  s += `<circle cx="${px}" cy="${py}" r="18" fill="rgba(59,130,246,0.12)"/>
+        <circle cx="${px}" cy="${py}" r="10" fill="rgba(59,130,246,0.22)"/>
+        <circle cx="${px}" cy="${py}" r="7" fill="#3b82f6" opacity="0.95"/>
+        <circle cx="${px}" cy="${py}" r="3.5" fill="white"/>
+        <line x1="${px}" y1="${py}" x2="${gx}" y2="${gy}" stroke="rgba(59,130,246,0.35)" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+
+  // Hole number watermark
+  s += `<text x="18" y="38" fill="rgba(0,0,0,0.12)" font-size="52" font-weight="900" font-family="Georgia,serif">${h.n}</text>`;
+
+  svg.innerHTML = s;
+
+  // Update distances
+  document.getElementById('d-center').textContent = h.y;
+  document.getElementById('d-front').textContent = Math.max(0, h.y - 10);
+  document.getElementById('d-back').textContent = h.y + 10;
+
+  // Update pill
+  document.getElementById('mph-hole-text').textContent = `Hole ${h.n} · Par ${h.par}`;
+  document.getElementById('mph-course-text').textContent = `${COURSES[S.course].name} · ${h.y}m`;
+}
+
+// ── HOLE NAVIGATION ───────────────────────────────────────────
+function prevHole() { if(S.hole>0){S.hole--;onHoleChange();} }
+function nextHole() { if(S.hole<17){S.hole++;onHoleChange();} }
+
+function onHoleChange() {
+  drawMapSVG();
+  renderHoleDots();
+  updateContextStrip();
+  updateSquickScore();
+  const h = COURSES[S.course].holes[S.hole];
+  document.getElementById('score-hole-num') && (document.getElementById('score-hole-num').textContent = h.n);
+}
+
+function updateContextStrip() {
+  const h = COURSES[S.course].holes[S.hole];
+  const hcp = S.profile.hcp || 14;
+  document.getElementById('ctx-hole').textContent = `Hole ${h.n} · Par ${h.par} · ${h.y}m`;
+  document.getElementById('ctx-meta').textContent = `${COURSES[S.course].name} · SI ${h.si} · HCP ${hcp}`;
+}
+
+// ── HOLE DOTS ─────────────────────────────────────────────────
+function renderHoleDots() {
+  const wrap = document.getElementById('hole-dots');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  COURSES[S.course].holes.forEach((h, i) => {
+    const sc = S.scores[S.course+'-'+i];
+    const dot = document.createElement('button');
+    dot.className = 'hdot';
+    if (i === S.hole) dot.classList.add('cur');
+    else if (sc) {
+      const cls = sc.diff<=-1?'done-birdie':sc.diff===0?'done-par':sc.diff===1?'done-bogey':'done-double';
+      dot.classList.add(cls);
+    }
+    dot.textContent = sc ? scoreLbl(sc.diff) : h.n;
+    dot.onclick = () => { S.hole = i; onHoleChange(); };
+    wrap.appendChild(dot);
+  });
+  updateSquickScore();
+}
+
+function updateSquickScore() {
+  const key = S.course+'-'+S.hole;
+  const sc = S.scores[key];
+  const el = document.getElementById('sq-score');
+  if (el) el.textContent = sc ? (sc.strokes + '') : '—';
+}
+
+function quickScore(delta) {
+  const h = COURSES[S.course].holes[S.hole];
+  const key = S.course+'-'+S.hole;
+  const cur = S.scores[key] ? S.scores[key].strokes : h.par;
+  const next = Math.max(1, cur + delta);
+  S.scores[key] = { strokes: next, diff: next - h.par };
+  updateScoreBadge();
+  renderHoleDots();
+  renderCourseMinis();
+}
+
+// ── COURSE ────────────────────────────────────────────────────
+function selectCourse(key) {
+  S.course = key; S.hole = 0; S.scores = {};
+  ['chateau','foret'].forEach(k => {
+    document.getElementById('cc-'+k).className = 'course-card '+(k===key?'on':'off');
+    document.getElementById('cc-badge-'+k).style.display = k===key?'':'none';
+  });
+  onHoleChange();
+  renderCourseMinis();
+  renderScoreTable();
+  switchTab('map', document.querySelector('.nav-item'));
+}
+
+function renderCourseMinis() {
+  ['chateau','foret'].forEach(key => {
+    const el = document.getElementById('cc-mini-'+key);
+    if (!el) return;
+    el.innerHTML = '';
+    COURSES[key].holes.forEach((h, i) => {
+      const sc = S.scores[key+'-'+i];
+      const sq = document.createElement('div');
+      sq.className = 'cc-sq';
+      const isAct = S.course===key;
+      if (sc) {
+        sq.style.background = sc.diff<=-1?(isAct?'rgba(255,255,255,0.9)':'#111'):sc.diff===0?'#ddd':'#fde8e8';
+        sq.style.color = sc.diff<=-1?(isAct?'#111':'#fff'):sc.diff===0?'#888':'#c00';
+        sq.textContent = scoreLbl(sc.diff);
+      } else {
+        sq.style.background = isAct?'rgba(255,255,255,0.15)':'#e0e0e0';
+        sq.style.color = isAct?'rgba(255,255,255,0.35)':'#bbb';
+        sq.textContent = h.n;
+      }
+      el.appendChild(sq);
+    });
+  });
+}
+
+// ── AI CALL ───────────────────────────────────────────────────
+function buildCtx() {
+  const h = COURSES[S.course].holes[S.hole];
+  const hcp = S.profile.hcp || 14;
+  const strokes = h.si <= hcp ? 1 : 0;
+  const p = S.profile;
+  const clubs = CLUBS.map((c,i)=>`${c}:${p.clubs[i]}m`).join(' · ');
+  const wx = S.weather ? `${S.weather.temp}°C, ${S.weather.wind}km/h ${S.weather.dir}` : 'unavailable';
+  return `${PERSONAS[S.persona].system}
+HOLE: ${COURSES[S.course].name} — Hole ${h.n}/18, Par ${h.par}, ${h.y}m, SI ${h.si}
+TIP: ${h.tip}
+WEATHER: ${wx}
+PLAYER: HCP ${hcp}, ${p.level}, ${p.hand}-handed, flight: ${p.flight}, weakness: ${p.weakness}
+STROKES THIS HOLE: ${strokes}
+SCORE SO FAR: ${getTotalLbl()} after ${Object.keys(S.scores).length} holes
+CLUB DISTANCES: ${clubs}
+CRITICAL: 1-2 sentences MAX. No greeting. No filler. Be specific to this exact situation.`;
+}
+
+async function sendMessage(msg) {
+  if (!msg || S.streaming) return;
+  stopSpeaking();
+  if (S.abortCtrl) S.abortCtrl.abort();
+  S.abortCtrl = new AbortController();
+  addUserMsg(msg);
+  const thinkEl = createThinkBubble();
+  S.streaming = true;
+  showStream(true);
+  const t0 = Date.now(); let full='', first=null, spoken=false, buf='';
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST', signal:S.abortCtrl.signal,
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:120, stream:true, system:buildCtx(), messages:[{role:'user',content:msg}] })
+    });
+    const reader=res.body.getReader(), dec=new TextDecoder();
+    while(true) {
+      const {done,value}=await reader.read(); if(done) break;
+      for(const line of dec.decode(value).split('\n').filter(l=>l.startsWith('data: '))) {
+        try {
+          const d=JSON.parse(line.slice(6));
+          if(d.type==='content_block_delta'&&d.delta?.text) {
+            if(!first){first=Date.now();showLatency(first-t0);}
+            full+=d.delta.text; buf+=d.delta.text;
+            updateBubble(thinkEl, full);
+            if(S.profile.voice!=='Screen only'&&!spoken&&/[.!?]/.test(buf)&&buf.length>15){speak(buf.trim());buf='';spoken=true;}
+          }
+        } catch(e){}
+      }
+    }
+    if(S.profile.voice!=='Screen only'&&!spoken&&full) speak(full.trim());
+    finalizeBubble(thinkEl, full.trim());
+  } catch(e) {
+    if(e.name!=='AbortError') finalizeBubble(thinkEl,'Connection lost.');
+    else thinkEl.remove();
+  }
+  S.streaming=false; showStream(false);
+}
+
+function addUserMsg(text) {
+  const chat=document.getElementById('chat-messages');
+  const row=document.createElement('div'); row.className='msg user';
+  const b=document.createElement('div'); b.className='bubble user'; b.textContent=text;
+  row.appendChild(b); chat.appendChild(row);
+  chat.scrollTop=9999;
+}
+
+function createThinkBubble() {
+  const chat=document.getElementById('chat-messages');
+  const row=document.createElement('div'); row.className='msg';
+  const av=document.createElement('div'); av.className='avatar';
+  av.textContent=PERSONAS[S.persona].emoji;
+  const b=document.createElement('div'); b.className='bubble streaming';
+  const dots=document.createElement('div'); dots.className='dots-wrap';
+  for(let i=0;i<3;i++){const d=document.createElement('div');d.className='dot';dots.appendChild(d);}
+  b.appendChild(dots); row.appendChild(av); row.appendChild(b);
+  chat.appendChild(row); chat.scrollTop=9999;
+  return row;
+}
+
+function updateBubble(row, text) {
+  const b=row.querySelector('.bubble');
+  b.innerHTML=text+'<span class="cursor-blink"></span>';
+  document.getElementById('chat-messages').scrollTop=9999;
+}
+
+function finalizeBubble(row, text) {
+  const b=row.querySelector('.bubble');
+  b.innerHTML=text;
+  if(S.profile.voice!=='Screen only'){
+    const rb=document.createElement('button');
+    rb.style.cssText='display:block;margin-top:5px;background:none;border:none;color:#ccc;font-size:11px;cursor:pointer;padding:0';
+    rb.textContent='↺'; rb.onclick=()=>speak(text); b.appendChild(rb);
+  }
+  document.getElementById('chat-messages').scrollTop=9999;
+}
+
+function addCaddieMsg(text, persona) {
+  const chat=document.getElementById('chat-messages');
+  const row=document.createElement('div'); row.className='msg';
+  const av=document.createElement('div'); av.className='avatar';
+  av.textContent=PERSONAS[persona||S.persona].emoji;
+  const b=document.createElement('div'); b.className='bubble'; b.textContent=text;
+  row.appendChild(av); row.appendChild(b);
+  chat.appendChild(row); chat.scrollTop=9999;
+}
+
+function showStream(on) {
+  document.getElementById('stream-bar').className=on?'show':'';
+  if(!on){document.getElementById('stream-ms').textContent='';}
+}
+function showLatency(ms){document.getElementById('stream-ms').textContent=ms+'ms';}
+
+// ── VOICE ─────────────────────────────────────────────────────
+function speak(text) {
+  if(S.profile.voice==='Screen only') return;
+  window.speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text);
+  const lang=S.profile.lang; u.lang=lang==='fr'?'fr-FR':lang==='nl'?'nl-NL':'en-GB';
+  u.rate=0.92; u.pitch=0.94;
+  const v=window.speechSynthesis.getVoices().find(x=>x.lang.startsWith(u.lang.split('-')[0]));
+  if(v) u.voice=v;
+  u.onstart=()=>{S.speaking=true;document.getElementById('map-mic').classList.add('speaking');};
+  u.onend=()=>{S.speaking=false;document.getElementById('map-mic').classList.remove('speaking');};
+  window.speechSynthesis.speak(u);
+}
+function stopSpeaking(){window.speechSynthesis.cancel();S.speaking=false;document.getElementById('map-mic').classList.remove('speaking');}
+
+function toggleMapMic() {
+  if(S.speaking){stopSpeaking();return;}
+  toggleVoiceInput('map-mic');
+}
+function toggleCaddieMic() { toggleVoiceInput('mic-caddie'); }
+
+function toggleVoiceInput(btnId) {
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){alert('Use Chrome for voice recognition.');return;}
+  if(S.listening){window._rec?.stop();S.listening=false;document.getElementById(btnId)?.classList.remove('listening','on');return;}
+  stopSpeaking();
+  const rec=new SR();
+  const lang=S.profile.lang; rec.lang=lang==='fr'?'fr-FR':lang==='nl'?'nl-NL':'en-GB';
+  rec.onresult=e=>{
+    const msg=e.results[0][0].transcript;
+    S.listening=false;
+    document.getElementById(btnId)?.classList.remove('listening','on');
+    document.getElementById('map-mic')?.classList.remove('listening');
+    // Switch to caddie tab and send
+    switchTab('caddie',document.querySelectorAll('.nav-item')[1]);
+    sendMessage(msg);
+  };
+  rec.onerror=rec.onend=()=>{S.listening=false;document.getElementById(btnId)?.classList.remove('listening','on');document.getElementById('map-mic')?.classList.remove('listening');};
+  rec.start(); window._rec=rec; S.listening=true;
+  document.getElementById(btnId)?.classList.add(btnId==='map-mic'?'listening':'on');
+  document.getElementById('map-mic')?.classList.add('listening');
+}
+
+function sendMsg() {
+  const input=document.getElementById('msg-input');
+  const msg=input.value.trim(); if(!msg) return;
+  input.value=''; document.getElementById('send-btn').classList.remove('ready');
+  sendMessage(msg);
+}
+function toggleSendBtn(){document.getElementById('send-btn').classList.toggle('ready',!!document.getElementById('msg-input').value.trim());}
+
+// ── PERSONA ───────────────────────────────────────────────────
+function setPersona(key, btn) {
+  S.persona=key;
+  document.querySelectorAll('.p-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// ── SCORE ─────────────────────────────────────────────────────
+function getTotalLbl() {
+  const t=Object.values(S.scores).reduce((a,b)=>a+b.diff,0);
+  return t===0?'E':t>0?'+'+t:''+t;
+}
+function scoreLbl(d){return d===0?'E':d>0?'+'+d:''+d;}
+function scoreName(d){return d<=-2?'Eagle 🦅':d===-1?'Birdie 🐦':d===0?'Par':d===1?'Bogey':'Double+';}
+function updateScoreBadge(){document.getElementById('score-badge').textContent=getTotalLbl();}
+
+function openScoreModal() {
+  const h=COURSES[S.course].holes[S.hole];
+  document.getElementById('modal-title').textContent=`Hole ${h.n} — Par ${h.par}`;
+  S.selectedStroke=null;
+  document.getElementById('score-result').textContent='';
+  document.getElementById('modal-save').className='modal-save';
+  const wrap=document.getElementById('stroke-btns'); wrap.innerHTML='';
+  [h.par-2,h.par-1,h.par,h.par+1,h.par+2,h.par+3].filter(s=>s>0).forEach(s=>{
+    const btn=document.createElement('button'); btn.className='s-btn'; btn.textContent=s;
+    btn.onclick=()=>{
+      S.selectedStroke=s;
+      document.querySelectorAll('.s-btn').forEach(b=>b.classList.remove('sel'));
+      btn.classList.add('sel');
+      document.getElementById('score-result').textContent=scoreName(s-h.par);
+      document.getElementById('modal-save').className='modal-save ready';
+    };
+    wrap.appendChild(btn);
+  });
+  document.getElementById('score-modal').classList.add('open');
+}
+function closeScoreModal(){document.getElementById('score-modal').classList.remove('open');S.selectedStroke=null;}
+
+function saveScore() {
+  if(!S.selectedStroke) return;
+  const h=COURSES[S.course].holes[S.hole];
+  S.scores[S.course+'-'+S.hole]={strokes:S.selectedStroke,diff:S.selectedStroke-h.par};
+  closeScoreModal(); updateScoreBadge(); renderHoleDots(); renderCourseMinis();
+  if(S.hole<17){
+    S.hole++;
+    onHoleChange();
+    const nh=COURSES[S.course].holes[S.hole];
+    addCaddieMsg(`Hole ${nh.n}, par ${nh.par}, ${nh.y}m. ${nh.tip}.`,S.persona);
+  }
+}
+
+function renderScoreTable() {
+  const c=COURSES[S.course], tbody=document.getElementById('sc-tbody');
+  tbody.innerHTML='';
+  let played=0,birdies=0,pars=0,bogeys=0;
+  c.holes.forEach((h,i)=>{
+    const sc=S.scores[S.course+'-'+i];
+    if(sc){played++;if(sc.diff<=-1)birdies++;else if(sc.diff===0)pars++;else bogeys++;}
+    const tr=document.createElement('tr');
+    if(i===S.hole) tr.className='cur';
+    tr.onclick=()=>{S.hole=i;onHoleChange();switchTab('map',document.querySelector('.nav-item'));};
+    const chipClass=!sc?'':`chip ${sc.diff<=-2?'chip-eagle':sc.diff===-1?'chip-birdie':sc.diff===0?'chip-par':sc.diff===1?'chip-bogey':'chip-double'}`;
+    tr.innerHTML=`<td>${h.n}</td><td style="color:#888">${h.par}</td><td style="color:#bbb;font-size:11px">${h.y}</td><td style="color:#ccc;font-size:11px">${h.si}</td><td>${sc?`<span class="${chipClass}">${scoreLbl(sc.diff)}</span>`:'<span style="color:#e0e0e0">—</span>'}</td>`;
+    tbody.appendChild(tr);
+  });
+  document.getElementById('st-played').textContent=played;
+  document.getElementById('st-birdies').textContent=birdies;
+  document.getElementById('st-pars').textContent=pars;
+  document.getElementById('st-bogeys').textContent=bogeys;
+  document.getElementById('sc-total').textContent=getTotalLbl();
+  document.getElementById('sc-holes-played').textContent=played+' holes';
+  document.getElementById('sc-tot-m').textContent=c.yards;
+  document.getElementById('sc-tot-score').textContent=getTotalLbl();
+  document.getElementById('sc-course-name').textContent=c.name;
+}
+
+// ── SETTINGS / PROFILE ────────────────────────────────────────
+function openSettings(){document.getElementById('settings-panel').classList.add('open');}
+function closeSettings(){document.getElementById('settings-panel').classList.remove('open');}
+
+function renderClubGrid() {
+  const grid=document.getElementById('club-grid');
+  grid.innerHTML='';
+  CLUBS.forEach((name,i)=>{
+    const row=document.createElement('div'); row.className='club-row';
+    const suggested = SUGGESTED_DIST[i] !== S.profile.clubs[i];
+    row.innerHTML=`<div class="club-name">${name}</div>
+      <input class="club-dist-input" type="number" value="${S.profile.clubs[i]}" onchange="S.profile.clubs[${i}]=parseInt(this.value)||${DEFAULT_DIST[i]}">
+      <div class="club-unit">m</div>
+      ${suggested?`<div class="suggested-badge">AI: ${SUGGESTED_DIST[i]}</div>`:''}`;
+    grid.appendChild(row);
+  });
+}
+
+function saveProfile() {
+  S.profile.name=document.getElementById('p-name').value;
+  S.profile.age=document.getElementById('p-age').value;
+  S.profile.gender=document.getElementById('p-gender').value;
+  S.profile.nationality=document.getElementById('p-nationality').value;
+  S.profile.club=document.getElementById('p-club').value;
+  S.profile.hcp=parseFloat(document.getElementById('p-hcp').value)||14.2;
+  S.profile.level=document.getElementById('p-level').value;
+  S.profile.hand=document.getElementById('p-hand').value;
+  S.profile.format=document.getElementById('p-format').value;
+  S.profile.flight=document.getElementById('p-flight').value;
+  S.profile.weakness=document.getElementById('p-weakness').value;
+  S.profile.persona=document.getElementById('p-persona').value.toLowerCase();
+  S.profile.lang=document.getElementById('p-lang').value;
+  S.profile.voice=document.getElementById('p-voice').value;
+  localStorage.setItem('caddieai-profile', JSON.stringify(S.profile));
+  updateContextStrip();
+  closeSettings();
+  addCaddieMsg(`Profile saved. Welcome${S.profile.name?' '+S.profile.name:''}. HCP ${S.profile.hcp} — I'll tailor every recommendation to your game.`, S.persona);
+}
+
+function loadProfile() {
+  const saved=localStorage.getItem('caddieai-profile');
+  if(saved){
+    try{
+      const p=JSON.parse(saved); Object.assign(S.profile,p);
+      document.getElementById('p-name').value=p.name||'';
+      document.getElementById('p-age').value=p.age||'';
+      document.getElementById('p-hcp').value=p.hcp||'';
+      document.getElementById('p-club').value=p.club||'';
+      document.getElementById('p-nationality').value=p.nationality||'';
+    }catch(e){}
+  }
+}
+</script>
+</body>
+</html>
