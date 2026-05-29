@@ -1111,7 +1111,7 @@ async function sendMessage(msg) {
   showStream(true);
   const t0 = Date.now(); let full='', first=null, spoken=false, buf='';
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('/api/chat', {
       method:'POST', signal:S.abortCtrl.signal,
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:120, stream:true, system:buildCtx(), messages:[{role:'user',content:msg}] })
