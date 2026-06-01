@@ -187,18 +187,7 @@ input,select { font-family:inherit; }
 /* Topo background caddie */
 #caddie-topo { position:absolute; inset:0; pointer-events:none; z-index:0; overflow:hidden; }
 
-.persona-row {
-  display:flex; gap:6px; padding:10px 16px 8px;
-  overflow-x:auto; scrollbar-width:none; flex-shrink:0;
-  border-bottom:1px solid var(--sep); position:relative; z-index:2;
-  background:var(--parchment);
-}
-.p-btn {
-  flex-shrink:0; background:var(--dune); border-radius:20px;
-  padding:6px 14px; font-size:11px; font-weight:400; color:var(--pebble);
-  transition:all 0.15s;
-}
-.p-btn.active { background:var(--ink); color:var(--parchment); font-weight:500; }
+
 
 .ctx-bar {
   padding:8px 16px; background:var(--dune); border-bottom:1px solid var(--sep);
@@ -359,6 +348,43 @@ tfoot td { font-weight:600; color:var(--ink); border-top:2px solid var(--ink); f
 .modal-save { flex:2; padding:14px; border-radius:14px; background:var(--dune); font-size:14px; font-weight:500; color:var(--pebble); transition:all 0.15s; font-family:'Playfair Display',serif; }
 .modal-save.ready { background:var(--ink); color:var(--parchment); }
 
+
+/* ── LEAFLET OVERRIDES ── */
+#leaflet-map { width:100%; height:100%; }
+.leaflet-control-zoom { border:none !important; box-shadow:none !important; }
+.leaflet-control-zoom a {
+  background:rgba(29,29,27,0.82) !important;
+  backdrop-filter:blur(12px) !important;
+  color:#f5f0e8 !important;
+  border:1px solid rgba(245,240,232,0.1) !important;
+  width:32px !important; height:32px !important;
+  line-height:32px !important; font-size:16px !important;
+  border-radius:8px !important; margin-bottom:4px !important;
+  display:block !important;
+}
+.leaflet-control-zoom a:hover { background:rgba(29,29,27,0.95) !important; }
+.leaflet-control-attribution { display:none !important; }
+
+/* Distance badge on map */
+#map-dist-badge {
+  position:absolute; bottom:88px; left:50%; transform:translateX(-50%);
+  background:rgba(29,29,27,0.88); backdrop-filter:blur(12px);
+  border-radius:12px; padding:8px 16px; text-align:center;
+  z-index:25; pointer-events:none; display:none;
+}
+.mdb-num { font-family:'Playfair Display',serif; font-size:28px; color:var(--parchment); line-height:1; }
+.mdb-lbl { font-size:9px; color:rgba(245,240,232,0.4); text-transform:uppercase; letter-spacing:1px; margin-top:2px; }
+
+/* ElevenLabs speaking indicator */
+#el-speaking {
+  display:none; position:absolute; top:76px; left:50%; transform:translateX(-50%);
+  background:rgba(74,122,56,0.9); backdrop-filter:blur(8px);
+  border-radius:20px; padding:5px 14px; z-index:30;
+  font-size:11px; color:white; display:none; align-items:center; gap:6px;
+  white-space:nowrap;
+}
+#el-speaking.show { display:flex; }
+
 /* ── KEYFRAMES ── */
 @keyframes glow { 0%,100%{opacity:1} 50%{opacity:0.3} }
 @keyframes bounce { 0%,60%,100%{transform:translateY(0);opacity:0.3} 30%{transform:translateY(-4px);opacity:1} }
@@ -366,6 +392,8 @@ tfoot td { font-weight:600; color:var(--ink); border-top:2px solid var(--ink); f
 @keyframes fadein { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
 @keyframes wavebar { 0%,100%{transform:scaleY(0.4)} 50%{transform:scaleY(1)} }
 </style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
 <div id="app">
@@ -402,8 +430,11 @@ tfoot td { font-weight:600; color:var(--ink); border-top:2px solid var(--ink); f
     <div id="tab-map" class="tab-panel active">
       <div id="map-canvas">
 
+        <!-- Leaflet map -->
+        <div id="leaflet-map" style="position:absolute;inset:0;z-index:0;"></div>
+
         <!-- Topo waves on map -->
-        <div id="map-topo">
+        <div id="map-topo" style="pointer-events:none;">
           <svg viewBox="0 0 430 500" preserveAspectRatio="xMidYMid slice" style="width:100%;height:100%;opacity:0.09">
             <path d="M-20,30 Q80,10 160,35 Q240,60 320,25 Q380,10 450,30" stroke="#f5f0e8" stroke-width="1.2" fill="none"/>
             <path d="M-20,48 Q75,25 155,52 Q235,78 316,42 Q378,26 450,48" stroke="#f5f0e8" stroke-width="1.2" fill="none"/>
@@ -434,9 +465,6 @@ tfoot td { font-weight:600; color:var(--ink); border-top:2px solid var(--ink); f
           </svg>
         </div>
 
-        <!-- Hole SVG -->
-        <svg id="hole-svg" viewBox="0 0 400 420" preserveAspectRatio="xMidYMid slice"></svg>
-
         <!-- UI overlays -->
         <div id="map-info-pill">
           <button class="mip-nav" onclick="prevHole()">‹</button>
@@ -455,6 +483,8 @@ tfoot td { font-weight:600; color:var(--ink); border-top:2px solid var(--ink); f
 
         <div id="gps-badge"><div class="gps-dot searching" id="gps-dot"></div><span id="gps-txt">Locating...</span></div>
         <div id="wind-badge" style="display:none"><div class="wb-num" id="w-num">--</div><div class="wb-dir" id="w-dir">km/h</div></div>
+        <div id="map-dist-badge"><div class="mdb-num" id="mdb-num">--</div><div class="mdb-lbl">m to flag</div></div>
+        <div id="el-speaking">🎙 Speaking...</div>
 
         <button id="map-mic" onclick="toggleMapMic()">
           <svg viewBox="0 0 24 24" fill="none" stroke="#f5f0e8" stroke-width="1.8" stroke-linecap="round">
@@ -514,19 +544,15 @@ tfoot td { font-weight:600; color:var(--ink); border-top:2px solid var(--ink); f
         </svg>
       </div>
 
-      <div class="persona-row">
-        <button class="p-btn active" onclick="setPersona('pro',this)">🎩 Pro</button>
-        <button class="p-btn" onclick="setPersona('coach',this)">💪 Coach</button>
-        <button class="p-btn" onclick="setPersona('buddy',this)">🤝 Buddy</button>
-        <button class="p-btn" onclick="setPersona('seve',this)">⭐ Legend</button>
-      </div>
-
       <div class="ctx-bar">
         <div>
           <div class="ctx-hole" id="ctx-hole">Hole 1 · Par 4 · 287m</div>
           <div class="ctx-meta" id="ctx-meta">Le Château · SI 10 · HCP 14</div>
         </div>
-        <div class="ctx-wx" id="ctx-wx">-- km/h --</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="background:var(--ink);color:var(--parchment);border-radius:20px;padding:3px 10px;font-size:10px;font-weight:500;letter-spacing:0.5px;">🎩 Pro</div>
+          <div class="ctx-wx" id="ctx-wx">-- km/h --</div>
+        </div>
       </div>
 
       <div id="stream-bar">
@@ -732,7 +758,6 @@ tfoot td { font-weight:600; color:var(--ink); border-top:2px solid var(--ink); f
     <div class="s-section">
       <div class="s-section-title">Caddie Preferences</div>
       <div class="s-group">
-        <div class="s-row"><div class="s-icon">🎩</div><div class="s-label">Default persona</div><select class="s-select" id="p-persona"><option>Pro</option><option>Coach</option><option>Buddy</option><option>Legend</option></select></div>
         <div class="s-row"><div class="s-icon">🌍</div><div class="s-label">Language</div><select class="s-select" id="p-lang"><option value="en" selected>English</option><option value="fr">Français</option><option value="nl">Nederlands</option></select></div>
         <div class="s-row"><div class="s-icon">🔊</div><div class="s-label">Voice</div><select class="s-select" id="p-voice"><option>Screen only</option><option selected>Speaker</option><option>Earbuds</option></select></div>
       </div>
@@ -810,10 +835,7 @@ const DEF_DIST = [215,200,185,175,168,160,150,140,130,120,108,95,82,68];
 const AI_DIST  = [198,186,172,165,160,152,143,133,124,114,102,90,77,63];
 
 const PERSONAS = {
-  pro:  {emoji:"🎩",sys:"You are a PGA Tour caddie. Ultra precise, authoritative. 1-2 sentences MAX. No filler. No greetings."},
-  coach:{emoji:"💪",sys:"You are a demanding golf coach. Direct, motivating. 1-2 sentences MAX."},
-  buddy:{emoji:"🤝",sys:"You are a friendly golf buddy. Warm, relaxed. 1-2 sentences MAX."},
-  seve: {emoji:"⭐",sys:"Inspired by Seve Ballesteros. Passionate, bold. 1-2 sentences MAX."},
+  pro: {emoji:"🎩", sys:"You are an elite PGA Tour caddie with 20 years of experience. You know every course, every wind condition, every pressure situation. Ultra precise, authoritative, concise. 1-2 sentences MAX. No filler. No greetings. Always give ONE clear recommendation."},
 };
 
 const HOLE_SHAPES = [
@@ -839,7 +861,7 @@ const HOLE_SHAPES = [
 
 // ── STATE ─────────────────────────────────────────────────────
 const S = {
-  course:'chateau', hole:0, persona:'pro',
+  course:'chateau', hole:0, persona:'pro', // locked
   scores:{}, weather:null, streaming:false, listening:false, speaking:false,
   abortCtrl:null, gpsWatcher:null, selStroke:null,
   profile:{name:'',age:'',gender:'',nat:'',club:'Sept Fontaines',hcp:14.2,level:'Intermediate',hand:'Right',fmt:'Stroke play',flight:'Straight',weak:'Driving',persona:'pro',lang:'en',voice:'Speaker',clubs:[...DEF_DIST]}
@@ -849,6 +871,7 @@ const S = {
 window.addEventListener('DOMContentLoaded',()=>{
   loadProfile(); buildClubGrid(); renderDots(); renderMinis();
   drawHole(); renderScoreTable(); initWeather(); initGPS();
+  setTimeout(initLeafletMap, 500);
   addCaddieMsg("Ready. Le Château, hole 1, par 4, 287m. Dogleg left — aim centre-left.",'pro');
   updateCtx();
 });
@@ -860,7 +883,7 @@ function switchTab(name,btn){
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   if(name==='score') renderScoreTable();
-  if(name==='map') { renderDots(); drawHole(); }
+  if(name==='map') { renderDots(); drawHole(); if(!leafletMap) setTimeout(initLeafletMap,200); }
 }
 
 // ── WEATHER ───────────────────────────────────────────────────
@@ -881,59 +904,131 @@ function initGPS(){
   if(!navigator.geolocation){setGPS('off','GPS unavailable');return;}
   setGPS('searching','Locating...');
   S.gpsWatcher=navigator.geolocation.watchPosition(
-    pos=>{const acc=Math.round(pos.coords.accuracy);setGPS('live',`GPS · ±${acc}m`);updateDists(COURSES[S.course].holes[S.hole].y);},
+    pos=>{const acc=Math.round(pos.coords.accuracy);setGPS('live',`GPS · ±${acc}m`);updateDists(COURSES[S.course].holes[S.hole].y);updatePlayerOnMap(pos.coords.latitude,pos.coords.longitude);},
     ()=>setGPS('off','GPS off'),
     {enableHighAccuracy:true,maximumAge:3000,timeout:10000}
   );
 }
 function setGPS(type,txt){document.getElementById('gps-dot').className='gps-dot '+type;document.getElementById('gps-txt').textContent=txt;}
 
-// ── MAP SVG ───────────────────────────────────────────────────
+// ── LEAFLET MAP ───────────────────────────────────────────────
+let leafletMap = null;
+let playerMarker = null;
+let greenMarker = null;
+let distLine = null;
+
+// Sept Fontaines Le Château — approximate green coordinates
+const GREEN_COORDS = {
+  chateau: [
+    [50.6172, 4.3658],[50.6184, 4.3661],[50.6196, 4.3668],[50.6175, 4.3672],
+    [50.6188, 4.3682],[50.6202, 4.3674],[50.6170, 4.3650],[50.6180, 4.3648],
+    [50.6165, 4.3655],[50.6158, 4.3648],[50.6162, 4.3662],[50.6156, 4.3668],
+    [50.6164, 4.3678],[50.6174, 4.3688],[50.6166, 4.3695],[50.6155, 4.3687],
+    [50.6144, 4.3686],[50.6154, 4.3700]
+  ],
+  foret: [
+    [50.6180, 4.3720],[50.6188, 4.3728],[50.6195, 4.3715],[50.6202, 4.3722],
+    [50.6210, 4.3730],[50.6198, 4.3740],[50.6188, 4.3748],[50.6178, 4.3755],
+    [50.6170, 4.3748],[50.6162, 4.3740],[50.6170, 4.3730],[50.6178, 4.3722],
+    [50.6186, 4.3712],[50.6175, 4.3708],[50.6165, 4.3718],[50.6158, 4.3728],
+    [50.6150, 4.3722],[50.6158, 4.3712]
+  ]
+};
+
+function initLeafletMap() {
+  if (leafletMap) return;
+  const greenCoord = GREEN_COORDS[S.course][S.hole];
+  leafletMap = L.map('leaflet-map', {
+    center: greenCoord,
+    zoom: 17,
+    zoomControl: true,
+    attributionControl: false,
+  });
+
+  // Satellite tiles — free, no API key
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 20,
+    attribution: ''
+  }).addTo(leafletMap);
+
+  // Green marker
+  const greenIcon = L.divIcon({
+    html: `<div style="position:relative;width:24px;height:24px;">
+      <div style="width:24px;height:24px;border-radius:50%;background:#4a7a38;border:2px solid white;display:flex;align-items:center;justify-content:center;">
+        <div style="width:2px;height:12px;background:white;position:absolute;top:-8px;left:11px;"></div>
+        <div style="width:8px;height:5px;background:#e63946;position:absolute;top:-8px;left:13px;clip-path:polygon(0 0,100% 50%,0 100%);"></div>
+      </div>
+    </div>`,
+    iconSize: [24, 32], iconAnchor: [12, 12], className: ''
+  });
+  greenMarker = L.marker(greenCoord, {icon: greenIcon}).addTo(leafletMap);
+
+  // Player marker
+  const playerIcon = L.divIcon({
+    html: `<div style="width:36px;height:36px;border-radius:50%;background:rgba(74,122,56,0.2);display:flex;align-items:center;justify-content:center;">
+      <div style="width:22px;height:22px;border-radius:50%;background:rgba(74,122,56,0.35);display:flex;align-items:center;justify-content:center;">
+        <div style="width:12px;height:12px;border-radius:50%;background:#4a7a38;border:2.5px solid white;"></div>
+      </div>
+    </div>`,
+    iconSize: [36, 36], iconAnchor: [18, 18], className: ''
+  });
+  // Start player near tee
+  const teeOffset = [greenCoord[0] - 0.003, greenCoord[1] + 0.001];
+  playerMarker = L.marker(teeOffset, {icon: playerIcon}).addTo(leafletMap);
+
+  // Dashed line tee → green
+  distLine = L.polyline([teeOffset, greenCoord], {
+    color: 'rgba(74,122,56,0.6)', weight: 1.5,
+    dashArray: '5, 5'
+  }).addTo(leafletMap);
+
+  updateMapDist(teeOffset, greenCoord);
+}
+
+function updateHoleOnMap() {
+  if (!leafletMap) return;
+  const greenCoord = GREEN_COORDS[S.course][S.hole];
+  if (greenMarker) greenMarker.setLatLng(greenCoord);
+  leafletMap.flyTo(greenCoord, 17, {duration: 0.8});
+}
+
+function updatePlayerOnMap(lat, lng) {
+  if (!leafletMap || !playerMarker) return;
+  const pos = [lat, lng];
+  playerMarker.setLatLng(pos);
+  if (distLine && greenMarker) {
+    const green = greenMarker.getLatLng();
+    distLine.setLatLngs([pos, [green.lat, green.lng]]);
+    updateMapDist(pos, [green.lat, green.lng]);
+  }
+}
+
+function updateMapDist(from, to) {
+  const dist = haversine(from[0], from[1], to[0], to[1]);
+  const el = document.getElementById('mdb-num');
+  const badge = document.getElementById('map-dist-badge');
+  if (el) { el.textContent = Math.round(dist); badge.style.display = ''; }
+  // Also update legacy distance cards
+  document.getElementById('d-center').textContent = Math.round(dist);
+  document.getElementById('d-front').textContent = Math.max(0, Math.round(dist) - 10);
+  document.getElementById('d-back').textContent = Math.round(dist) + 10;
+}
+
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const dLat = (lat2-lat1)*Math.PI/180;
+  const dLng = (lng2-lng1)*Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
 function drawHole(){
-  const svg=document.getElementById('hole-svg');
-  const sh=HOLE_SHAPES[Math.min(S.hole,HOLE_SHAPES.length-1)];
-  const h=COURSES[S.course].holes[S.hole];
-  const [tx,ty]=sh.tee,[gx,gy]=sh.green,[bx,by]=sh.bend;
-  const fw=`M${tx},${ty} Q${bx},${by} ${gx},${gy}`;
-  const rw=h.par===3?34:h.par===5?56:48, fw2=h.par===3?28:h.par===5?50:42;
-  let s=`<defs><filter id="sh"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.1"/></filter></defs>
-  <rect width="400" height="420" fill="#1d1d1b"/>`;
-  // Sky gradient top
-  s+=`<ellipse cx="200" cy="-20" rx="220" ry="100" fill="#2a3a2a" opacity="0.5"/>`;
-  // Rough
-  s+=`<path d="${fw}" stroke="#2d5a1e" stroke-width="${rw+22}" fill="none" stroke-linecap="round" opacity="0.8"/>`;
-  // Fairway
-  s+=`<path d="${fw}" stroke="#3a7a2a" stroke-width="${rw}" fill="none" stroke-linecap="round"/>`;
-  s+=`<path d="${fw}" stroke="#4a9a38" stroke-width="${fw2}" fill="none" stroke-linecap="round"/>`;
-  // Stripes
-  s+=`<path d="${fw}" stroke="#5aaa48" stroke-width="${fw2-8}" fill="none" stroke-linecap="round" stroke-dasharray="22 22" opacity="0.3"/>`;
-  // Water
-  if(sh.water){s+=`<ellipse cx="305" cy="220" rx="52" ry="32" fill="#2a5a8a" opacity="0.8"/><ellipse cx="305" cy="220" rx="50" ry="30" fill="#3a6a9a" opacity="0.4"/>`;}
-  // Trees
-  [[60,330],[45,260],[58,190],[65,130],[55,80],[345,330],[358,260],[342,190],[330,130],[348,80],[85,390],[318,390]].forEach(([x,y])=>{
-    s+=`<circle cx="${x}" cy="${y}" r="15" fill="#1a4a10" opacity="0.9"/><circle cx="${x}" cy="${y}" r="11" fill="#2a6020" opacity="0.5"/>`;
-  });
-  // Bunkers
-  sh.bunk.forEach(([bkx,bky,bw,bh])=>{
-    s+=`<ellipse cx="${bkx}" cy="${bky}" rx="${bw}" ry="${bh}" fill="#c8b060" opacity="0.95" filter="url(#sh)"/><ellipse cx="${bkx}" cy="${bky}" rx="${bw-3}" ry="${bh-3}" fill="#d8c070" opacity="0.5"/>`;
-  });
-  // Green
-  s+=`<ellipse cx="${gx}" cy="${gy}" rx="30" ry="20" fill="#3aaa3a" opacity="0.95" filter="url(#sh)"/><ellipse cx="${gx}" cy="${gy}" rx="28" ry="18" fill="#4ac848" opacity="0.4"/>`;
-  // Flag
-  s+=`<line x1="${gx}" y1="${gy-22}" x2="${gx}" y2="${gy+5}" stroke="#f5f0e8" stroke-width="1.5"/><polygon points="${gx},${gy-22} ${gx+11},${gy-16} ${gx},${gy-10}" fill="#c03030"/>`;
-  // Front/center/back dots
-  s+=`<circle cx="${gx-2}" cy="${gy+8}" r="3" fill="#f5f0e8" opacity="0.55"/><circle cx="${gx-2}" cy="${gy}" r="3" fill="#e63946" opacity="0.9"/><circle cx="${gx-2}" cy="${gy-8}" r="3" fill="#f5f0e8" opacity="0.55"/>`;
-  // Tee
-  s+=`<rect x="${tx-18}" y="${ty-11}" width="36" height="22" rx="5" fill="#b89040" opacity="0.9"/><rect x="${tx-16}" y="${ty-9}" width="32" height="18" rx="4" fill="#d4aa58" opacity="0.6"/><text x="${tx}" y="${ty+5}" text-anchor="middle" fill="white" font-size="9" font-weight="700">TEE</text>`;
-  // Distance line
-  s+=`<line x1="${tx}" y1="${ty}" x2="${gx}" y2="${gy}" stroke="rgba(245,240,232,0.2)" stroke-width="1" stroke-dasharray="5 5"/>`;
-  // Player dot
-  const px=tx+(gx-tx)*0.38, py=ty+(gy-ty)*0.38;
-  s+=`<circle cx="${px}" cy="${py}" r="18" fill="rgba(74,122,56,0.12)"/><circle cx="${px}" cy="${py}" r="10" fill="rgba(74,122,56,0.22)"/><circle cx="${px}" cy="${py}" r="7" fill="#4a7a38" opacity="0.95"/><circle cx="${px}" cy="${py}" r="3.5" fill="#f5f0e8"/>`;
-  s+=`<line x1="${px}" y1="${py}" x2="${gx}" y2="${gy}" stroke="rgba(74,122,56,0.4)" stroke-width="1.5" stroke-dasharray="4 4"/>`;
-  // Hole watermark
-  s+=`<text x="18" y="38" fill="rgba(245,240,232,0.06)" font-size="52" font-weight="900" font-family="Georgia,serif">${h.n}</text>`;
-  svg.innerHTML=s;
+  // Init map if not done
+  if (!leafletMap) { setTimeout(initLeafletMap, 100); }
+  else { updateHoleOnMap(); }
+  // Update distances
+  const h = COURSES[S.course].holes[S.hole];
+
   updateDists(h.y);
   document.getElementById('mph-text').textContent=`Hole ${h.n} · Par ${h.par}`;
   document.getElementById('mph-sub').textContent=`${COURSES[S.course].name} · ${h.y}m`;
@@ -1043,7 +1138,7 @@ async function sendMessage(msg){
     const data=await res.json();
     first=Date.now();showLatency(first-t0);
     full=data.content?.[0]?.text||'Connection issue.';
-    if(S.profile.voice!=='Screen only') speak(full.trim());
+    if(S.profile.voice!=='Screen only') speakElevenLabs(full.trim());
     finalizeBubble(thinkEl,full.trim());
     showOnMap(full.trim());
   }catch(e){
@@ -1092,7 +1187,37 @@ function showStream(on){document.getElementById('stream-bar').className=on?'show
 function showLatency(ms){document.getElementById('stream-ms').textContent=ms+'ms';}
 
 // ── VOICE ─────────────────────────────────────────────────────
-function speak(txt){
+// ── ELEVENLABS TTS ────────────────────────────────────────────
+const EL_KEY = "sk_0e7ddcfeab92843249c141b59af95bbef1a7d3b2391d4632";
+const EL_VOICE = "pNInz6obpgDQGcFmaJgB"; // Adam — deep professional
+
+async function speakElevenLabs(text) {
+  const indicator = document.getElementById('el-speaking');
+  if(indicator) indicator.classList.add('show');
+  try {
+    const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${EL_VOICE}/stream`, {
+      method: 'POST',
+      headers: { 'xi-api-key': EL_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: text,
+        model_id: 'eleven_multilingual_v2',
+        voice_settings: { stability: 0.5, similarity_boost: 0.8, style: 0.2, use_speaker_boost: true }
+      })
+    });
+    if(!res.ok) throw new Error('EL failed');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    audio.onended = () => { if(indicator) indicator.classList.remove('show'); URL.revokeObjectURL(url); };
+    audio.onerror = () => { if(indicator) indicator.classList.remove('show'); };
+    audio.play();
+  } catch(e) {
+    if(indicator) indicator.classList.remove('show');
+    speakBrowser(text); // fallback
+  }
+}
+
+function speakBrowser(txt){
   if(S.profile.voice==='Screen only') return;
   window.speechSynthesis.cancel();
   const u=new SpeechSynthesisUtterance(txt);
@@ -1121,7 +1246,7 @@ function toggleVoice(btnId){
 }
 function sendMsg(){const i=document.getElementById('msg-input');const m=i.value.trim();if(!m) return;i.value='';document.getElementById('send-btn').classList.remove('ready');sendMessage(m);}
 function toggleSend(){document.getElementById('send-btn').classList.toggle('ready',!!document.getElementById('msg-input').value.trim());}
-function setPersona(key,btn){S.persona=key;document.querySelectorAll('.p-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
+function setPersona(key,btn){ /* locked to pro */ }
 
 // ── SCORE ─────────────────────────────────────────────────────
 function getTotLbl(){const t=Object.values(S.scores).reduce((a,b)=>a+b.diff,0);return t===0?'E':t>0?'+'+t:''+t;}
@@ -1154,7 +1279,7 @@ function saveScore(){
     const nh=COURSES[S.course].holes[S.hole];
     const msg=`Hole ${nh.n}, par ${nh.par}, ${nh.y}m. ${nh.tip}.`;
     addCaddieMsg(msg,S.persona);
-    if(S.profile.voice!=='Screen only') setTimeout(()=>speak(msg),200);
+    if(S.profile.voice!=='Screen only') setTimeout(()=>speakElevenLabs(msg),200);
   }
 }
 function renderScoreTable(){
