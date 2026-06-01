@@ -41,7 +41,7 @@ input,select,textarea { font-family:inherit; }
 /* ── APP SHELL ── */
 #app {
   display: flex; flex-direction: column;
-  height: 100vh; max-width: 430px; margin: 0 auto;
+  height: 100dvh; max-width: 430px; margin: 0 auto;
   background: var(--white); position: relative; overflow: hidden;
 }
 
@@ -75,7 +75,7 @@ input,select,textarea { font-family:inherit; }
 }
 
 /* ── CONTENT ── */
-#content { flex: 1; overflow: hidden; position: relative; }
+#content { flex: 1; overflow: hidden; position: relative; padding-bottom: 70px; }
 .tab-panel { display: none; flex-direction: column; height: 100%; }
 .tab-panel.active { display: flex; }
 
@@ -83,8 +83,11 @@ input,select,textarea { font-family:inherit; }
 #bottom-nav {
   display: flex; background: var(--white);
   border-top: 1px solid var(--sep);
-  padding-bottom: var(--safe-b);
-  flex-shrink: 0; position: relative; z-index: 50;
+  padding-bottom: 8px;
+  flex-shrink: 0; position: fixed; bottom: 0; left: 50%;
+  transform: translateX(-50%);
+  width: 100%; max-width: 430px;
+  z-index: 100;
 }
 .nav-item {
   flex: 1; display: flex; flex-direction: column;
@@ -532,6 +535,15 @@ input,select,textarea { font-family:inherit; }
 
         <!-- Mic -->
         <button id="map-mic" onclick="toggleMapMic()">🎙</button>
+
+        <!-- Caddie response on map -->
+        <div id="map-caddie-response" style="display:none;position:absolute;bottom:80px;left:16px;right:16px;background:rgba(0,0,0,0.82);backdrop-filter:blur(12px);border-radius:16px;padding:14px 16px;z-index:25;">
+          <div style="display:flex;align-items:flex-start;gap:10px;">
+            <div id="map-caddie-avatar" style="width:28px;height:28px;border-radius:50%;background:#111;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;">🎩</div>
+            <div id="map-caddie-text" style="font-size:14px;color:#fff;line-height:1.5;flex:1;"></div>
+            <button onclick="document.getElementById('map-caddie-response').style.display='none'" style="background:none;border:none;color:rgba(255,255,255,0.4);font-size:16px;flex-shrink:0;">✕</button>
+          </div>
+        </div>
       </div>
 
       <!-- Score row -->
@@ -1121,6 +1133,8 @@ async function sendMessage(msg) {
     first = Date.now(); showLatency(first-t0);
     if(S.profile.voice!=='Screen only') speak(full.trim());
     finalizeBubble(thinkEl, full.trim());
+    // Also show on map
+    showOnMap(full.trim());
   } catch(e) {
     if(e.name!=='AbortError') finalizeBubble(thinkEl,'Connection lost.');
     else thinkEl.remove();
@@ -1183,6 +1197,19 @@ function showStream(on) {
 function showLatency(ms){document.getElementById('stream-ms').textContent=ms+'ms';}
 
 // ── VOICE ─────────────────────────────────────────────────────
+function showOnMap(text) {
+  const el = document.getElementById('map-caddie-response');
+  const txt = document.getElementById('map-caddie-text');
+  const av = document.getElementById('map-caddie-avatar');
+  if(el && txt) {
+    txt.textContent = text;
+    av.textContent = PERSONAS[S.persona].emoji;
+    el.style.display = 'block';
+    // Auto hide after 8 seconds
+    setTimeout(() => { el.style.display = 'none'; }, 8000);
+  }
+}
+
 function speak(text) {
   if(S.profile.voice==='Screen only') return;
   window.speechSynthesis.cancel();
