@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:;">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>The Caddy</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
@@ -385,6 +386,15 @@ tfoot td { font-weight:600; color:var(--ink); border-top:2px solid var(--ink); f
 }
 #el-speaking.show { display:flex; }
 
+
+/* ── TEE SELECTOR ── */
+.tee-btn {
+  flex-shrink:0; border:none; border-radius:20px;
+  padding:5px 12px; font-size:11px; font-weight:500;
+  cursor:pointer; opacity:0.5; transition:all 0.15s; white-space:nowrap;
+}
+.tee-btn.active-tee { opacity:1; box-shadow:0 2px 8px rgba(0,0,0,0.2); transform:scale(1.05); }
+
 /* ── KEYFRAMES ── */
 @keyframes glow { 0%,100%{opacity:1} 50%{opacity:0.3} }
 @keyframes bounce { 0%,60%,100%{transform:translateY(0);opacity:0.3} 30%{transform:translateY(-4px);opacity:1} }
@@ -392,8 +402,8 @@ tfoot td { font-weight:600; color:var(--ink); border-top:2px solid var(--ink); f
 @keyframes fadein { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
 @keyframes wavebar { 0%,100%{transform:scaleY(0.4)} 50%{transform:scaleY(1)} }
 </style>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous"/>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous" onload="window._leafletReady=true;if(window._appReady)initLeafletMap();" onerror="console.log('Leaflet CDN failed')"></script>
 </head>
 <body>
 <div id="app">
@@ -431,7 +441,7 @@ tfoot td { font-weight:600; color:var(--ink); border-top:2px solid var(--ink); f
       <div id="map-canvas">
 
         <!-- Leaflet map -->
-        <div id="leaflet-map" style="position:absolute;inset:0;z-index:0;"></div>
+        <div id="leaflet-map" style="position:absolute;inset:0;z-index:0;background:#1d1d1b;"></div>
 
         <!-- Topo waves on map -->
         <div id="map-topo" style="pointer-events:none;">
@@ -544,14 +554,29 @@ tfoot td { font-weight:600; color:var(--ink); border-top:2px solid var(--ink); f
         </svg>
       </div>
 
+      <!-- Tee selector -->
+      <div id="tee-bar" style="display:flex;gap:6px;padding:8px 16px;background:var(--dune);border-bottom:1px solid var(--sep);flex-shrink:0;overflow-x:auto;scrollbar-width:none;position:relative;z-index:2;align-items:center;">
+        <span style="font-size:10px;color:var(--pebble);letter-spacing:0.8px;text-transform:uppercase;white-space:nowrap;margin-right:4px;">Tees</span>
+        <button onclick="setTee('champ',this)"  class="tee-btn" style="background:#222;color:#fff;">⬛ Champ</button>
+        <button onclick="setTee('white',this)"  class="tee-btn" style="background:#e8e8e8;color:#333;">⬜ White</button>
+        <button onclick="setTee('yellow',this)" class="tee-btn active-tee" style="background:#f0c000;color:#333;">🟨 Yellow</button>
+        <button onclick="setTee('blue',this)"   class="tee-btn" style="background:#3a7fd4;color:#fff;">🟦 Blue</button>
+        <button onclick="setTee('red',this)"    class="tee-btn" style="background:#c03030;color:#fff;">🟥 Red</button>
+      </div>
+
+      <!-- Handicap strokes info bar -->
+      <div id="hcp-bar" style="display:flex;align-items:center;justify-content:space-between;padding:6px 16px;background:var(--parchment);border-bottom:1px solid var(--sep);flex-shrink:0;position:relative;z-index:2;">
+        <div id="hcp-strokes-info" style="font-size:11px;color:var(--pebble);"></div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="background:var(--ink);color:var(--parchment);border-radius:20px;padding:3px 10px;font-size:10px;font-weight:500;letter-spacing:0.5px;">🎩 Pro</div>
+          <div class="ctx-wx" id="ctx-wx">-- km/h --</div>
+        </div>
+      </div>
+
       <div class="ctx-bar">
         <div>
           <div class="ctx-hole" id="ctx-hole">Hole 1 · Par 4 · 287m</div>
           <div class="ctx-meta" id="ctx-meta">Le Château · SI 10 · HCP 14</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <div style="background:var(--ink);color:var(--parchment);border-radius:20px;padding:3px 10px;font-size:10px;font-weight:500;letter-spacing:0.5px;">🎩 Pro</div>
-          <div class="ctx-wx" id="ctx-wx">-- km/h --</div>
         </div>
       </div>
 
@@ -782,28 +807,37 @@ tfoot td { font-weight:600; color:var(--ink); border-top:2px solid var(--ink); f
 </div>
 
 <script>
+window.onerror = function(msg,src,line,col,err){ return true; };
 // ── DATA ──────────────────────────────────────────────────────
 const COURSES = {
-  chateau:{ name:"Le Château", par:72, yards:5424,
+  chateau:{ name:"Le Château", par:72,
+    // Official scorecard — all tee distances
+    tees: {
+      champ: { name:"Championship", color:"#222", yards:[327,313,422,336,466,165,325,148,385,385,391,177,335,447,333,412,178,458], total:6003 },
+      white: { name:"White",        color:"#ccc", yards:[316,313,420,328,466,165,325,148,363,385,348,170,335,431,333,371,178,458], total:5853 },
+      yellow:{ name:"Yellow",       color:"#f0c000", yards:[287,291,394,313,422,150,306,136,335,353,330,156,310,410,303,344,166,418], total:5424 },
+      blue:  { name:"Blue",         color:"#3a7fd4", yards:[270,261,369,293,400,150,278,130,313,345,296,143,293,410,296,333,151,402], total:5133 },
+      red:   { name:"Red",          color:"#c03030", yards:[253,239,353,272,376,140,259,111,296,317,286,130,266,328,274,302,137,373], total:4712 },
+    },
     holes:[
-      {n:1,par:4,y:287,si:10,tip:"Dogleg left — aim centre-left fairway"},
-      {n:2,par:4,y:291,si:8,tip:"Wide fairway — downhill approach"},
-      {n:3,par:5,y:394,si:16,tip:"Reachable in 2 — hedges left"},
-      {n:4,par:4,y:313,si:12,tip:"Bunker at 200m — elevated green"},
-      {n:5,par:5,y:422,si:2,tip:"Water right entire hole"},
-      {n:6,par:3,y:150,si:14,tip:"Par 3 over water — dominant wind"},
-      {n:7,par:4,y:306,si:4,tip:"Narrow fairway — trees both sides"},
-      {n:8,par:3,y:136,si:18,tip:"Short par 3 — fast green"},
-      {n:9,par:4,y:335,si:6,tip:"Plateau green — back to clubhouse"},
-      {n:10,par:4,y:353,si:1,tip:"Index 1 — water in play"},
-      {n:11,par:4,y:330,si:17,tip:"Uphill — bunker at 180m"},
-      {n:12,par:3,y:156,si:13,tip:"Very steep green"},
-      {n:13,par:4,y:310,si:7,tip:"2 greenside bunkers"},
-      {n:14,par:5,y:410,si:5,tip:"Reachable in 2 — water left"},
-      {n:15,par:4,y:303,si:11,tip:"Uphill — don't underclub"},
-      {n:16,par:4,y:344,si:3,tip:"Hardest on back nine"},
-      {n:17,par:3,y:166,si:15,tip:"Downhill — wind amplified"},
-      {n:18,par:5,y:418,si:9,tip:"Dramatic finish — water right"},
+      {n:1, par:4, si:10, tip:"Dogleg left — aim centre-left fairway"},
+      {n:2, par:4, si:8,  tip:"Wide fairway — downhill approach"},
+      {n:3, par:5, si:16, tip:"Reachable in 2 — hedges left"},
+      {n:4, par:4, si:12, tip:"Bunker at 200m — elevated green"},
+      {n:5, par:5, si:2,  tip:"Water right entire hole"},
+      {n:6, par:3, si:14, tip:"Par 3 over water — dominant wind"},
+      {n:7, par:4, si:4,  tip:"Narrow fairway — trees both sides"},
+      {n:8, par:3, si:18, tip:"Short par 3 — fast green"},
+      {n:9, par:4, si:6,  tip:"Plateau green — back to clubhouse"},
+      {n:10,par:4, si:1,  tip:"Index 1 — water in play"},
+      {n:11,par:4, si:17, tip:"Uphill — bunker at 180m"},
+      {n:12,par:3, si:13, tip:"Very steep green"},
+      {n:13,par:4, si:7,  tip:"2 greenside bunkers"},
+      {n:14,par:5, si:5,  tip:"Reachable in 2 — water left"},
+      {n:15,par:4, si:11, tip:"Uphill — don't underclub"},
+      {n:16,par:4, si:3,  tip:"Hardest on back nine"},
+      {n:17,par:3, si:15, tip:"Downhill — wind amplified"},
+      {n:18,par:5, si:9,  tip:"Dramatic finish — water right"},
     ]
   },
   foret:{ name:"La Forêt", par:69, yards:4787,
@@ -835,7 +869,46 @@ const DEF_DIST = [215,200,185,175,168,160,150,140,130,120,108,95,82,68];
 const AI_DIST  = [198,186,172,165,160,152,143,133,124,114,102,90,77,63];
 
 const PERSONAS = {
-  pro: {emoji:"🎩", sys:"You are an elite PGA Tour caddie with 20 years of experience. You know every course, every wind condition, every pressure situation. Ultra precise, authoritative, concise. 1-2 sentences MAX. No filler. No greetings. Always give ONE clear recommendation."},
+  pro: {
+    emoji:"🎩",
+    sys:`You are Ridge — an elite caddie with 20+ years on the European Tour. You've caddied at Augusta, St Andrews, Royal Birkdale. You are now the personal caddie of {PLAYER_NAME} at Golf de Sept Fontaines, Belgium.
+
+YOUR PERSONALITY:
+- Warm but direct. Like a trusted friend who happens to be an expert.
+- Use the player's first name sparingly — only for key moments: encouragement after a bad hole, celebrating a birdie/eagle, or when they need a mental boost. Most of the time just talk naturally without using their name.
+- You remember details from past conversations and reference them.
+- You celebrate good shots genuinely. You pick the player up after bad ones.
+- You have opinions and you share them confidently.
+- Occasional dry British humour is fine.
+- You speak like a human, not a robot. Natural language, contractions, real sentences.
+
+YOUR EXPERTISE (use all of it):
+- Club selection: exact distances, wind adjustment, temperature effect, altitude, lie angle, adrenaline factor
+- Course management: when to attack, when to lay up, where to miss, percentage plays
+- Reading greens: grain, slope, speed, break — describe it visually
+- Mental game: pre-shot routines, breathing, reset after bad holes, staying present
+- Rules of golf: drops, relief, OB, lateral hazards, embedded ball, unplayable lies, abnormal course conditions
+- Shot types: punch, flop, bump-and-run, knockdown, draw around trouble, open-face bunker
+- Bunker technique: stance width, ball position, face angle, sand entry point, swing speed
+- Weather: wind effect by club, cold weather distance loss (~1% per 5°C below 20°C), wet conditions
+- Stableford, stroke play, match play strategy differences
+- WHS handicap: net double bogey, playing handicap, stroke allocation
+
+CONVERSATION STYLE:
+- 2-4 sentences for normal advice. More for complex situations or mental coaching.
+- Start with the key recommendation, then explain the why.
+- If you don't know something specific, say so honestly.
+- Reference the player's known weaknesses/strengths from their profile.
+- When the player scores a birdie or eagle, react like a real caddie would.
+
+ACTIVATION:
+- Players call you with "Hey Ridge" to get your attention. Acknowledge it naturally the first time.
+
+MEMORY:
+- You remember what was discussed earlier in this conversation.
+- You track the player's performance during the round and adapt your advice.
+- If they've been struggling, acknowledge it and give them something to focus on.`
+  },
 };
 
 const HOLE_SHAPES = [
@@ -861,7 +934,7 @@ const HOLE_SHAPES = [
 
 // ── STATE ─────────────────────────────────────────────────────
 const S = {
-  course:'chateau', hole:0, persona:'pro', // locked
+  course:'chateau', hole:0, persona:'pro', tee:'yellow', strokesPerHole:[], conversationHistory:[], // locked
   scores:{}, weather:null, streaming:false, listening:false, speaking:false,
   abortCtrl:null, gpsWatcher:null, selStroke:null,
   profile:{name:'',age:'',gender:'',nat:'',club:'Sept Fontaines',hcp:14.2,level:'Intermediate',hand:'Right',fmt:'Stroke play',flight:'Straight',weak:'Driving',persona:'pro',lang:'en',voice:'Speaker',clubs:[...DEF_DIST]}
@@ -872,18 +945,28 @@ window.addEventListener('DOMContentLoaded',()=>{
   loadProfile(); buildClubGrid(); renderDots(); renderMinis();
   drawHole(); renderScoreTable(); initWeather(); initGPS();
   setTimeout(initLeafletMap, 500);
-  addCaddieMsg("Ready. Le Château, hole 1, par 4, 287m. Dogleg left — aim centre-left.",'pro');
+  computeHandicapStrokes();
+  window._appReady=true;
+  if(window._leafletReady) initLeafletMap(); else setTimeout(initLeafletMap, 1000);
+  const pName = S.profile.name || '';
+  const welcomeMsg = pName
+    ? `Morning ${pName} — Ridge here, ready to go. Le Château, hole 1, par 4, 287m from the ${S.tee} tees. Dogleg left, let's start smart and aim centre-left.`
+    : "Morning — Ridge here. Le Château, hole 1, par 4, 287m. Dogleg left — aim centre-left fairway for the best angle in.";
+  addCaddieMsg(welcomeMsg, 'pro');
   updateCtx();
 });
 
 // ── TAB SWITCH ────────────────────────────────────────────────
 function switchTab(name,btn){
-  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
-  document.getElementById('tab-'+name).classList.add('active');
-  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  if(name==='score') renderScoreTable();
-  if(name==='map') { renderDots(); drawHole(); if(!leafletMap) setTimeout(initLeafletMap,200); }
+  try {
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    const panel = document.getElementById('tab-'+name);
+    if(panel) panel.classList.add('active');
+    document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+    if(btn) btn.classList.add('active');
+    if(name==='score') try{renderScoreTable();}catch(e){}
+    if(name==='map') { try{renderDots();}catch(e){} try{drawHole();}catch(e){} if(!leafletMap) setTimeout(initLeafletMap,200); }
+  } catch(e) { console.log('switchTab error:',e); }
 }
 
 // ── WEATHER ───────────────────────────────────────────────────
@@ -917,38 +1000,60 @@ let playerMarker = null;
 let greenMarker = null;
 let distLine = null;
 
-// Sept Fontaines Le Château — approximate green coordinates
+// Sept Fontaines Le Château — REAL green coordinates (manually recorded)
 const GREEN_COORDS = {
   chateau: [
-    [50.6172, 4.3658],[50.6184, 4.3661],[50.6196, 4.3668],[50.6175, 4.3672],
-    [50.6188, 4.3682],[50.6202, 4.3674],[50.6170, 4.3650],[50.6180, 4.3648],
-    [50.6165, 4.3655],[50.6158, 4.3648],[50.6162, 4.3662],[50.6156, 4.3668],
-    [50.6164, 4.3678],[50.6174, 4.3688],[50.6166, 4.3695],[50.6155, 4.3687],
-    [50.6144, 4.3686],[50.6154, 4.3700]
+    [50.717976, 4.339095], // Hole 1
+    [50.719036, 4.334633], // Hole 2
+    [50.722621, 4.331634], // Hole 3
+    [50.721457, 4.336280], // Hole 4
+    [50.723040, 4.343454], // Hole 5
+    [50.723508, 4.341400], // Hole 6
+    [50.723171, 4.344171], // Hole 7
+    [50.723465, 4.344859], // Hole 8
+    [50.720746, 4.344661], // Hole 9
+    [50.717745, 4.338028], // Hole 10
+    [50.721246, 4.334423], // Hole 11
+    [50.721694, 4.333236], // Hole 12
+    [50.721061, 4.335849], // Hole 13
+    [50.722187, 4.342127], // Hole 14
+    [50.720981, 4.338222], // Hole 15
+    [50.720610, 4.336063], // Hole 16
+    [50.719280, 4.336884], // Hole 17
+    [50.720049, 4.343040], // Hole 18
   ],
   foret: [
-    [50.6180, 4.3720],[50.6188, 4.3728],[50.6195, 4.3715],[50.6202, 4.3722],
-    [50.6210, 4.3730],[50.6198, 4.3740],[50.6188, 4.3748],[50.6178, 4.3755],
-    [50.6170, 4.3748],[50.6162, 4.3740],[50.6170, 4.3730],[50.6178, 4.3722],
-    [50.6186, 4.3712],[50.6175, 4.3708],[50.6165, 4.3718],[50.6158, 4.3728],
-    [50.6150, 4.3722],[50.6158, 4.3712]
+    // TODO — to be recorded on course
+    [50.7185, 4.3420],[50.7190, 4.3415],[50.7195, 4.3410],[50.7200, 4.3425],
+    [50.7205, 4.3435],[50.7198, 4.3440],[50.7188, 4.3448],[50.7178, 4.3455],
+    [50.7170, 4.3448],[50.7162, 4.3440],[50.7170, 4.3430],[50.7178, 4.3422],
+    [50.7186, 4.3412],[50.7175, 4.3408],[50.7165, 4.3418],[50.7158, 4.3428],
+    [50.7150, 4.3422],[50.7158, 4.3412]
   ]
 };
 
 function initLeafletMap() {
   if (leafletMap) return;
+  if (typeof L === 'undefined') {
+    console.log('Leaflet not loaded yet, retrying...');
+    setTimeout(initLeafletMap, 800);
+    return;
+  }
+  try {
+  const mapDiv = document.getElementById('leaflet-map');
+  if (!mapDiv) { console.log('Map div not found'); return; }
   const greenCoord = GREEN_COORDS[S.course][S.hole];
   leafletMap = L.map('leaflet-map', {
     center: greenCoord,
-    zoom: 17,
+    zoom: 18,
     zoomControl: true,
     attributionControl: false,
   });
 
   // Satellite tiles — free, no API key
+  // ESRI satellite — works on Safari, no CORS
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-    maxZoom: 20,
-    attribution: ''
+    maxZoom: 20, attribution: ''
   }).addTo(leafletMap);
 
   // Green marker
@@ -983,6 +1088,7 @@ function initLeafletMap() {
   }).addTo(leafletMap);
 
   updateMapDist(teeOffset, greenCoord);
+  } catch(e) { console.log('Map init error:', e); }
 }
 
 function updateHoleOnMap() {
@@ -1024,8 +1130,8 @@ function haversine(lat1, lng1, lat2, lng2) {
 
 function drawHole(){
   // Init map if not done
-  if (!leafletMap) { setTimeout(initLeafletMap, 100); }
-  else { updateHoleOnMap(); }
+  if (!leafletMap) { setTimeout(initLeafletMap, 300); }
+  else { try { updateHoleOnMap(); } catch(e) { console.log('Map update error:', e); } }
   // Update distances
   const h = COURSES[S.course].holes[S.hole];
 
@@ -1040,14 +1146,91 @@ function updateDists(center){
   document.getElementById('d-back').textContent=center+10;
 }
 
+
+// ── TEE & HANDICAP ────────────────────────────────────────────
+
+function setTee(tee, btn) {
+  S.tee = tee;
+  document.querySelectorAll('.tee-btn').forEach(b => b.classList.remove('active-tee'));
+  btn.classList.add('active-tee');
+  updateCtx();
+  computeHandicapStrokes();
+  window._appReady=true;
+  if(window._leafletReady) initLeafletMap(); else setTimeout(initLeafletMap, 1000);
+}
+
+function getHoleDist(holeIdx) {
+  const c = COURSES[S.course];
+  const teeData = c.tees[S.tee];
+  return teeData ? teeData.yards[holeIdx] : c.holes[holeIdx].y || 287;
+}
+
+// WHS Course Handicap calculation
+// Course Handicap = Handicap Index × (Slope Rating / 113) + (Course Rating - Par)
+// For simplicity we use: Playing Handicap = Course Handicap (no PCC)
+function calcCourseHandicap(hcp, tee) {
+  // Sept Fontaines Le Château slope/rating per tee (approximate WHS values)
+  const teeRatings = {
+    champ:  { slope: 138, rating: 73.5 },
+    white:  { slope: 135, rating: 72.1 },
+    yellow: { slope: 132, rating: 70.8 },
+    blue:   { slope: 128, rating: 69.2 },
+    red:    { slope: 124, rating: 67.5 },
+  };
+  const r = teeRatings[tee] || teeRatings.yellow;
+  const par = COURSES[S.course].par;
+  const courseHcp = Math.round(hcp * (r.slope / 113) + (r.rating - par));
+  return Math.max(0, courseHcp);
+}
+
+// Strokes received on each hole based on Course Handicap and Stroke Index
+function getStrokesOnHole(courseHcp, si) {
+  if (courseHcp <= 0) return 0;
+  if (courseHcp >= 36) return 2 + (courseHcp - 36 >= si ? 1 : 0);
+  if (courseHcp >= 18) {
+    const extra = courseHcp - 18;
+    return 1 + (extra >= si ? 1 : 0);
+  }
+  return courseHcp >= si ? 1 : 0;
+}
+
+function computeHandicapStrokes() {
+  const hcp = parseFloat(S.profile.hcp) || 14.2;
+  const courseHcp = calcCourseHandicap(hcp, S.tee);
+  const c = COURSES[S.course];
+  const teeData = c.tees[S.tee];
+  const teeName = teeData ? teeData.name : 'Yellow';
+
+  // Build strokes per hole
+  S.strokesPerHole = c.holes.map(h => getStrokesOnHole(courseHcp, h.si));
+
+  // Show info
+  const infoEl = document.getElementById('hcp-strokes-info');
+  if (infoEl) {
+    const holesWithStrokes = S.strokesPerHole.filter(s => s > 0).length;
+    infoEl.innerHTML = `<span style="font-weight:600;color:var(--ink)">HCP ${hcp}</span> · Course HCP <span style="font-weight:600;color:var(--ink)">${courseHcp}</span> · ${teeName} tees · <span style="color:var(--woodland)">${holesWithStrokes} strokes</span>`;
+  }
+
+  updateCtx();
+}
+
 // ── HOLE NAV ──────────────────────────────────────────────────
 function prevHole(){if(S.hole>0){S.hole--;onHoleChange();}}
 function nextHole(){if(S.hole<17){S.hole++;onHoleChange();}}
 function onHoleChange(){drawHole();renderDots();updateCtx();updatePM();}
 function updateCtx(){
-  const h=COURSES[S.course].holes[S.hole];
-  document.getElementById('ctx-hole').textContent=`Hole ${h.n} · Par ${h.par} · ${h.y}m`;
-  document.getElementById('ctx-meta').textContent=`${COURSES[S.course].name} · SI ${h.si} · HCP ${S.profile.hcp||14}`;
+  const h = COURSES[S.course].holes[S.hole];
+  const dist = getHoleDist(S.hole);
+  const strokes = S.strokesPerHole ? S.strokesPerHole[S.hole] : 0;
+  const strokesTxt = strokes > 0 ? ` · +${strokes} stroke${strokes>1?'s':''}` : '';
+  document.getElementById('ctx-hole').textContent = `Hole ${h.n} · Par ${h.par} · ${dist}m${strokesTxt}`;
+  document.getElementById('ctx-meta').textContent = `${COURSES[S.course].name} · SI ${h.si}`;
+  // Update map info pill distance
+  document.getElementById('mph-sub').textContent = `${COURSES[S.course].name} · ${dist}m`;
+  // Update legacy distance cards
+  document.getElementById('d-center').textContent = dist;
+  document.getElementById('d-front').textContent = Math.max(0, dist - 10);
+  document.getElementById('d-back').textContent = dist + 10;
 }
 
 // ── HOLE DOTS ─────────────────────────────────────────────────
@@ -1104,20 +1287,40 @@ function renderMinis(){
 
 // ── AI ────────────────────────────────────────────────────────
 function buildCtx(){
+  const playerName = S.profile.name || 'mate';
   const h=COURSES[S.course].holes[S.hole], hcp=S.profile.hcp||14;
-  const strokes=h.si<=hcp?1:0;
+  const courseHcp = typeof calcCourseHandicap !== 'undefined' ? calcCourseHandicap(hcp, S.tee) : Math.round(hcp);
+  const strokes = S.strokesPerHole ? S.strokesPerHole[S.hole] : (h.si <= hcp ? 1 : 0);
+  const dist = getHoleDist(S.hole);
+  const teeData = COURSES[S.course].tees[S.tee];
+  const teeName = teeData ? teeData.name : 'Yellow';
   const wx=S.weather?`${S.weather.temp}°C, ${S.weather.wind}km/h ${S.weather.dir}`:'unavailable';
   const clubs=CLUBS.map((c,i)=>`${c}:${S.profile.clubs[i]}m`).join(' · ');
-  return `${PERSONAS[S.persona].sys}
-HOLE: ${COURSES[S.course].name} — Hole ${h.n}/18, Par ${h.par}, ${h.y}m, SI ${h.si}
+  const sys = PERSONAS[S.persona].sys.replace('{PLAYER_NAME}', playerName);
+  return `${sys}
+HOLE: ${COURSES[S.course].name} — Hole ${h.n}/18, Par ${h.par}, ${dist}m (${teeName} tees), SI ${h.si}
 TIP: ${h.tip}
 WEATHER: ${wx}
 PLAYER: HCP ${hcp}, ${S.profile.level||'Intermediate'}, ${S.profile.hand||'Right'}-handed, flight:${S.profile.flight||'Straight'}, weakness:${S.profile.weak||'Driving'}
 STROKES THIS HOLE: ${strokes}
 SCORE: ${getTotLbl()} after ${Object.keys(S.scores).length} holes
 CLUBS: ${clubs}
-LANGUAGE: ${S.profile.lang==='fr'?'French':S.profile.lang==='nl'?'Dutch':'English'}
-RULE: 1-2 sentences MAXIMUM. No greeting. No filler. Be specific.`;
+PLAYER PROFILE:
+- Name: ${playerName}
+- Handicap: ${hcp} (Course HCP: ${courseHcp} on ${teeName} tees)
+- Level: ${S.profile.level||'Intermediate'}
+- Hand: ${S.profile.hand||'Right'}-handed
+- Ball flight: ${S.profile.flight||'Straight'}
+- Main weakness: ${S.profile.weak||'Not specified'}
+- Home club: ${S.profile.club||'Sept Fontaines'}
+
+CURRENT ROUND:
+- Holes played: ${Object.keys(S.scores).length}/18
+- Score so far: ${getTotLbl()}
+- Holes with strokes today: ${S.strokesPerHole ? S.strokesPerHole.map((s,i)=>s>0?`H${i+1}(+${s})`:'').filter(Boolean).join(', ') : 'calculating...'}
+
+LANGUAGE: ${S.profile.lang==='fr'?'Respond entirely in French':S.profile.lang==='nl'?'Respond entirely in Dutch':'Respond in English'}
+TONE: Natural, human, like a trusted caddie who knows this player well. Use their name. Be warm but expert.`;
 }
 
 async function sendMessage(msg){
@@ -1130,17 +1333,29 @@ async function sendMessage(msg){
   S.streaming=true; showStream(true);
   const t0=Date.now(); let full='',first=null;
   try{
+    // Build conversation history (last 8 exchanges for memory)
+    const historyMsgs = S.conversationHistory || [];
+    const messages = [...historyMsgs, {role:'user',content:msg}];
+
     const res=await fetch('/api/chat',{
       method:'POST',signal:S.abortCtrl.signal,
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:150,stream:false,system:buildCtx(),messages:[{role:'user',content:msg}]})
+      body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:300,stream:false,system:buildCtx(),messages:messages})
     });
     const data=await res.json();
     first=Date.now();showLatency(first-t0);
     full=data.content?.[0]?.text||'Connection issue.';
-    if(S.profile.voice!=='Screen only') speakElevenLabs(full.trim());
+    // Save to conversation history for memory (keep last 10 exchanges = 20 messages)
+    if (!S.conversationHistory) S.conversationHistory = [];
+    S.conversationHistory.push({role:'user', content:msg});
+    S.conversationHistory.push({role:'assistant', content:full.trim()});
+    if (S.conversationHistory.length > 20) S.conversationHistory = S.conversationHistory.slice(-20);
+
     finalizeBubble(thinkEl,full.trim());
     showOnMap(full.trim());
+
+    // ElevenLabs — start speaking immediately without waiting
+    if(S.profile.voice!=='Screen only') speakElevenLabs(full.trim());
   }catch(e){
     if(e.name!=='AbortError') finalizeBubble(thinkEl,'Connection lost.');
     else thinkEl.remove();
@@ -1179,7 +1394,7 @@ function addCaddieMsg(txt,persona){
 function showOnMap(txt){
   const el=document.getElementById('map-caddie-overlay');
   document.getElementById('mco-text').textContent=txt;
-  document.getElementById('mco-av').textContent=PERSONAS[S.persona].emoji;
+  document.getElementById('mco-av').textContent="🎩"; document.getElementById('mco-av').title="Ridge";
   el.classList.add('show');
   setTimeout(()=>el.classList.remove('show'),8000);
 }
@@ -1292,7 +1507,9 @@ function renderScoreTable(){
     if(i===S.hole) tr.className='cur';
     tr.onclick=()=>{S.hole=i;onHoleChange();switchTab('map',document.querySelector('.nav-btn'));};
     const chipCls=!sc?'':sc.diff<=-2?'chip chip-eagle':sc.diff===-1?'chip chip-birdie':sc.diff===0?'chip chip-par':sc.diff===1?'chip chip-bogey':'chip chip-double';
-    tr.innerHTML=`<td>${h.n}</td><td style="color:var(--pebble)">${h.par}</td><td style="color:var(--sand);font-size:11px">${h.y}</td><td style="color:var(--sand);font-size:11px">${h.si}</td><td>${sc?`<span class="${chipCls}">${scoreLbl(sc.diff)}</span>`:'<span style="color:var(--dune)">—</span>'}</td>`;
+    const hDist = getHoleDist(i);
+    const hStrokes = S.strokesPerHole ? S.strokesPerHole[i] : 0;
+    tr.innerHTML=`<td>${h.n}</td><td style="color:var(--pebble)">${h.par}</td><td style="color:var(--sand);font-size:11px">${hDist}</td><td style="color:var(--sand);font-size:11px">${h.si}${hStrokes>0?`<span style='color:var(--woodland);font-size:9px'> +${hStrokes}</span>`:''}</td><td>${sc?`<span class="${chipCls}">${scoreLbl(sc.diff)}</span>`:'<span style="color:var(--dune)">—</span>'}</td>`;
     tbody.appendChild(tr);
   });
   document.getElementById('st-played').textContent=played;
